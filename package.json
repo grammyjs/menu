@@ -1,0 +1,35 @@
+{
+    "name": "@grammyjs/menu",
+    "version": "0.1.0",
+    "description": "Interactive menus for grammY",
+    "main": "out/deps.node.js",
+    "scripts": {
+        "build": "deno2node tsconfig.json",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/grammyjs/menu.git"
+    },
+    "files": [
+        "out/"
+    ],
+    "keywords": [
+        "menu",
+        "inline",
+        "bot",
+        "grammy"
+    ],
+    "author": "KnorpelSenf",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/grammyjs/menu/issues"
+    },
+    "homepage": "https://grammy.dev/plugins/menu.html",
+    "devDependencies": {
+        "deno2node": "^0.2.0"
+    },
+    "peerDependencies": {
+        "grammy": "^0.5.0"
+    }
+}
