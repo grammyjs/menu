@@ -1,6 +1,6 @@
 {
     "name": "@grammyjs/menu",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Interactive menus for grammY",
     "main": "out/deps.node.js",
     "scripts": {
