@@ -16,7 +16,7 @@ function countBytes(str: string): number {
 
 /**
  * Context flavor for context objects in listeners that react to menus. Provides
- * `ctx.menu`, a control panes for the respective menu.
+ * `ctx.menu`, a control pane for the respective menu.
  */
 export interface MenuFlavor {
     /**
@@ -109,8 +109,8 @@ type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, 'text'> : T
  * between them, and more.
  */
 export class Menu<C extends Context = Context>
-    implements MiddlewareObj<C>, InlineKeyboardMarkup {
-    private readonly id: string
+    implements MiddlewareObj<C>, InlineKeyboardMarkup
+{
     private readonly buttons: MenuButton<C>[][] = [[]]
 
     private parent: Menu<C> | undefined = undefined
@@ -121,7 +121,6 @@ export class Menu<C extends Context = Context>
         Array<Middleware<Filter<C, 'callback_query:data'> & MenuFlavor>>
     >()
 
-    private readonly autoAnswer: boolean
     /**
      * Creates a new menu with the given identifier.
      *
@@ -137,11 +136,12 @@ export class Menu<C extends Context = Context>
      * @param id Identifier of the menu
      * @param autoAnswer Flag to disable automatic query answering
      */
-    constructor(id: string, autoAnswer = true) {
+    constructor(
+        private readonly id: string,
+        private readonly autoAnswer = true
+    ) {
         if (id.includes('/'))
             throw new Error(`You cannot use '/' in a menu identifier ('${id}')`)
-        this.id = id
-        this.autoAnswer = autoAnswer
     }
     /**
      * Used internally by the menu, do not touch or you'll burn yourself.
@@ -447,7 +447,7 @@ should not be provided, hence preventing this error.`
         const composer = new Composer<C>()
         composer
             .use((ctx, next) => {
-                ctx.api.config.use(async (prev, method, payload) => {
+                ctx.api.config.use(async (prev, method, payload, signal) => {
                     const p: Record<string, unknown> = payload
                     if (Array.isArray(p.results)) {
                         await Promise.all(
@@ -456,7 +456,7 @@ should not be provided, hence preventing this error.`
                     } else {
                         await this.fitPayload(p, ctx)
                     }
-                    return await prev(method, payload)
+                    return await prev(method, payload, signal)
                 })
                 return next()
             })
@@ -494,7 +494,7 @@ should not be provided, hence preventing this error.`
                         const parent = this.parent
                         if (parent === undefined)
                             throw new Error(
-                                `Cannot navigate back from this ${this.id}, no known parent!`
+                                `Cannot navigate back from menu '${this.id}', no known parent!`
                             )
                         await ctx.editMessageReplyMarkup({
                             reply_markup: this.parent,
