@@ -1,5 +1,5 @@
 {
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": { "source.fixAll": true },
-  "deno.enable": true
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": { "source.fixAll": true },
+    "deno.enable": true
 }
