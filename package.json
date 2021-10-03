@@ -19,7 +19,7 @@
         "build": "deno2node tsconfig.json"
     },
     "peerDependencies": {
-        "grammy": "^1.3.3"
+        "grammy": "^1.0.0"
     },
     "devDependencies": {
         "deno2node": "0.8.0"
