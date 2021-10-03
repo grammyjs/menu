@@ -109,7 +109,8 @@ type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, 'text'> : T
  * between them, and more.
  */
 export class Menu<C extends Context = Context>
-    implements MiddlewareObj<C>, InlineKeyboardMarkup {
+    implements MiddlewareObj<C>, InlineKeyboardMarkup
+{
     private readonly id: string
     private readonly buttons: MenuButton<C>[][] = [[]]
 
@@ -423,6 +424,41 @@ should not be provided, hence preventing this error.`
             )
         }
         return menu
+    }
+    /**
+     * This is an alternative way to initialize menu.
+     * Typical use case is when you want to create an arbitrary menu, using the data from `ctx.session`:
+     * ```ts
+     * const menuFactory = async (ctx, rootMenu) => ctx.session.data.reduce((menu, entry) => menu.text(entry), rootMenu)
+     * const menu = new Menu("root")
+     * bot.use(menu.build(menuFactory))
+     * bot.command("start", async (ctx) => {
+     *   await ctx.reply("Menu", {
+     *      reply_markup: menu,
+     *   });
+     * });
+     * ```
+     *
+     * @param menuFactory async menu factory function
+     * @returns MiddlewareObj
+     */
+    build(
+        menuFactory: (ctx: C, root: Menu<C>) => Promise<Menu<C>>
+    ): MiddlewareObj<C> {
+        const composer = new Composer<C>()
+        let initialized = false
+        composer.lazy(async (ctx: C) => {
+            if (!initialized) {
+                await menuFactory(ctx, this)
+                initialized = true
+            }
+            const c = new Composer<C>()
+            c.use(this.middleware())
+            return c
+        })
+        return {
+            middleware: () => composer.middleware(),
+        }
     }
     private async fitPayload(payload: Record<string, unknown>, ctx: C) {
         if (payload.reply_markup !== this) return
