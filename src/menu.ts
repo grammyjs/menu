@@ -135,7 +135,7 @@ type RawRange<C extends Context> = MenuButton<C>[][]
  */
 type MaybeRawRange<C extends Context> = Range<C> | RawRange<C>
 /**
- * Potentially async function that generates a potentially static range.
+ * Potentially async function that generates a potentially raw range.
  */
 type DynamicRange<C extends Context> = (
     ctx: C
@@ -175,8 +175,7 @@ class Range<C extends Context> {
      * buttons will be on a new row.
      */
     row() {
-        this.addRange([[], []])
-        return this
+        return this.addRange([[], []])
     }
     /**
      * Adds a new URL button. Telegram clients will open the provided URL when
@@ -409,7 +408,7 @@ class Range<C extends Context> {
             range: Range<C>
         ) => MaybePromise<MaybeRawRange<C> | void>
     ) {
-        this.addRange(async (ctx: C) => {
+        return this.addRange(async (ctx: C) => {
             const range = new Range<C>()
             const res = await rangeBuilder(ctx, range)
             if (res instanceof Menu)
@@ -418,7 +417,6 @@ class Range<C extends Context> {
                 )
             return res instanceof Range ? res : range
         })
-        return this
     }
     /**
      * Appends a given range to this range. This will effectively replay all
@@ -526,7 +524,7 @@ export class Menu<C extends Context = Context>
      */
     constructor(private readonly id: string, options: MenuOptions<C> = {}) {
         super()
-        // (id + row + col + prefix + hash) < 64 bytes
+        // (id + row + col + prefix + hash) <= 64 bytes
         if (countBytes(id + '/xx/yy/') + 1 + 4 > 64)
             throw new Error(
                 `Please use a shorter menu identifier than '${this.id}'! It causes the payload sizes to exceed 64 bytes!`
@@ -571,9 +569,12 @@ export class Menu<C extends Context = Context>
         if (existing !== undefined)
             throw new Error(`Menu '${existing.id}' already registered!`)
         for (const menu of arr) {
-            menu.index.forEach((v, k) => this.index.set(k, v)) // includes `menu` itself
+            // `menu.index` includes `menu` itself
+            menu.index.forEach((m, id) => {
+                this.index.set(id, m)
+                m.index = this.index
+            })
             menu.parent = parent
-            menu.index = this.index
         }
     }
     /**
@@ -590,7 +591,7 @@ export class Menu<C extends Context = Context>
                 .map(k => `'${k}'`)
                 .join(', ')
             throw new Error(
-                `Menu '${id}' is not a submenu of '${this.id}'! Known submenus are: ${validIds}`
+                `Menu '${id}' is not known to menu '${this.id}'! Known submenus are: ${validIds}`
             )
         }
         return menu
@@ -625,7 +626,7 @@ export class Menu<C extends Context = Context>
                               }`
                     if (fp.includes('/'))
                         throw new Error(
-                            `Could not render menu: fingerprint must not contain a '/' character ('${fp}')`
+                            `Could not render menu: '${this.id}' fingerprint must not contain a '/' character ('${fp}')`
                         )
                     const callback_data = `${this.id}/${hex(i)}/${hex(j)}/${fp}`
                     return { callback_data, text }
@@ -667,13 +668,6 @@ export class Menu<C extends Context = Context>
         }
     }
     middleware() {
-        const assert = <T>(value: T | undefined): T => {
-            if (value === undefined)
-                throw new Error(
-                    `Layout of '${this.id}' changed since last render for this message!'`
-                )
-            return value
-        }
         const composer = new Composer<C>((ctx, next) => {
             ctx.api.config.use(async (prev, method, payload, signal) => {
                 const p: Record<string, unknown> = payload
@@ -770,7 +764,7 @@ export class Menu<C extends Context = Context>
                                 `Cannot navigate back from menu '${menu.id}', no known parent!`
                             )
                         await ctx.editMessageReplyMarkup({
-                            reply_markup: menu.index.get(parent),
+                            reply_markup: menu.at(parent),
                         })
                     },
                 },
