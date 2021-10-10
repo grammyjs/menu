@@ -27,10 +27,10 @@
     "files": [
         "out/"
     ],
-    "main": "./out/menu.js",
+    "main": "./out/mod.js",
     "type": "commonjs",
     "exports": {
-        ".": "./out/menu.js"
+        ".": "./out/mod.js"
     },
     "keywords": [
         "interactive",
