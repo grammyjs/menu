@@ -22,7 +22,7 @@
         "grammy": "^1.0.0"
     },
     "devDependencies": {
-        "deno2node": "0.8.0"
+        "deno2node": "^1.0.0"
     },
     "files": [
         "out/"
