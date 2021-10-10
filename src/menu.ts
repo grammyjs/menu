@@ -105,6 +105,10 @@ type Cb<C extends Context> = Omit<
      * received.
      */
     middleware: MenuMiddleware<C>[]
+    /**
+     * Optional fingerprint for this button
+     */
+    fingerprint?: DynamicString<C>
 }
 type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>
 type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, 'text'> : T
@@ -241,11 +245,20 @@ class Range<C extends Context> {
      * })
      * ```
      *
-     * @param text The text to display
+     * @param text The text to display, or a text with a fingerprint
      * @param middleware The listeners to call when the button is pressed
      */
-    text(text: DynamicString<C>, ...middleware: MenuMiddleware<C>[]) {
-        return this.add({ text, middleware })
+    text(
+        text:
+            | DynamicString<C>
+            | { text: DynamicString<C>; fingerprint: DynamicString<C> },
+        ...middleware: MenuMiddleware<C>[]
+    ) {
+        return this.add(
+            typeof text === 'object'
+                ? { ...text, middleware }
+                : { text, middleware }
+        )
     }
     /**
      * Adds a new inline query button. Telegram clients will let the user pick a
@@ -599,9 +612,19 @@ export class Menu<C extends Context = Context>
                         ? await btn.text(ctx)
                         : btn.text
                 if ('middleware' in btn) {
-                    // Hash depends on the complete keyboard shape,
-                    // so we append it later to the callback data
-                    const callback_data = `${this.id}/${hex(i)}/${hex(j)}/`
+                    // Add empty string if no fingerprint is given. We will then
+                    // later append a hash once we know the complete menu layout
+                    const fp =
+                        btn.fingerprint === undefined
+                            ? ''
+                            : typeof btn.fingerprint === 'function'
+                            ? await btn.fingerprint(ctx)
+                            : btn.fingerprint
+                    if (fp.includes('/'))
+                        throw new Error(
+                            `Could not render menu: fingerprint must not contain a '/' character ('${fp}')`
+                        )
+                    const callback_data = `${this.id}/${hex(i)}/${hex(j)}/${fp}`
                     return { callback_data, text }
                 } else return { ...btn, text }
             }
@@ -612,7 +635,7 @@ export class Menu<C extends Context = Context>
         const lengths = [rendered.length, ...rendered.map(row => row.length)]
         for (const row of rendered) {
             for (const btn of row) {
-                if ('callback_data' in btn) {
+                if ('callback_data' in btn && btn.callback_data.endsWith('/')) {
                     const label = btn.text
                     const data = Array.from(label).map(c => c.codePointAt(0)!)
                     btn.callback_data += tinyHash(lengths.concat(data))
@@ -686,15 +709,20 @@ export class Menu<C extends Context = Context>
             if (row >= keyboard.length || col >= keyboard[row].length)
                 return menuIsOutdated()
             const btn = keyboard[row][col]
+            if (!('middleware' in btn)) return menuIsOutdated()
             const label =
                 typeof btn.text === 'function' ? await btn.text(ctx) : btn.text
-            const data = [
-                keyboard.length,
-                ...keyboard.map(row => row.length),
-                ...Array.from(label).map(c => c.codePointAt(0)!),
-            ]
-            if (!('middleware' in btn) || hash !== tinyHash(data))
-                return menuIsOutdated()
+            const expectedHash =
+                btn.fingerprint === undefined
+                    ? tinyHash([
+                          keyboard.length,
+                          ...keyboard.map(row => row.length),
+                          ...Array.from(label).map(c => c.codePointAt(0)!),
+                      ])
+                    : typeof btn.fingerprint === 'function'
+                    ? await btn.fingerprint(ctx)
+                    : btn.fingerprint
+            if (hash !== expectedHash) return menuIsOutdated()
             const navInstaller = this.navInstaller(menu)
             const handler = btn.middleware as Middleware<C>[]
             const mw = [navInstaller, ...handler]
