@@ -526,7 +526,8 @@ export class Menu<C extends Context = Context>
      */
     constructor(private readonly id: string, options: MenuOptions<C> = {}) {
         super()
-        if (countBytes(id + '/xx/yy/') + 4 > 64)
+        // (id + row + col + prefix + hash) < 64 bytes
+        if (countBytes(id + '/xx/yy/') + 1 + 4 > 64)
             throw new Error(
                 `Please use a shorter menu identifier than '${this.id}'! It causes the payload sizes to exceed 64 bytes!`
             )
@@ -617,9 +618,11 @@ export class Menu<C extends Context = Context>
                     const fp =
                         btn.fingerprint === undefined
                             ? ''
-                            : typeof btn.fingerprint === 'function'
-                            ? await btn.fingerprint(ctx)
-                            : btn.fingerprint
+                            : `f${
+                                  typeof btn.fingerprint === 'function'
+                                      ? await btn.fingerprint(ctx)
+                                      : btn.fingerprint
+                              }`
                     if (fp.includes('/'))
                         throw new Error(
                             `Could not render menu: fingerprint must not contain a '/' character ('${fp}')`
@@ -638,7 +641,7 @@ export class Menu<C extends Context = Context>
                 if ('callback_data' in btn && btn.callback_data.endsWith('/')) {
                     const label = btn.text
                     const data = Array.from(label).map(c => c.codePointAt(0)!)
-                    btn.callback_data += tinyHash(lengths.concat(data))
+                    btn.callback_data += `h${tinyHash(lengths.concat(data))}`
                 }
             }
         }
@@ -712,16 +715,19 @@ export class Menu<C extends Context = Context>
             if (!('middleware' in btn)) return menuIsOutdated()
             const label =
                 typeof btn.text === 'function' ? await btn.text(ctx) : btn.text
-            const expectedHash =
-                btn.fingerprint === undefined
-                    ? tinyHash([
-                          keyboard.length,
-                          ...keyboard.map(row => row.length),
-                          ...Array.from(label).map(c => c.codePointAt(0)!),
-                      ])
-                    : typeof btn.fingerprint === 'function'
-                    ? await btn.fingerprint(ctx)
-                    : btn.fingerprint
+            let expectedHash: string
+            if (btn.fingerprint === undefined) {
+                const lengths = keyboard.map(row => row.length)
+                const chars = Array.from(label).map(c => c.codePointAt(0)!)
+                const data = [keyboard.length, ...lengths, ...chars]
+                expectedHash = `h${tinyHash(data)}`
+            } else {
+                const fp =
+                    typeof btn.fingerprint === 'function'
+                        ? await btn.fingerprint(ctx)
+                        : btn.fingerprint
+                expectedHash = `f${fp}`
+            }
             if (hash !== expectedHash) return menuIsOutdated()
             const navInstaller = this.navInstaller(menu)
             const handler = btn.middleware as Middleware<C>[]
