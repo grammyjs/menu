@@ -710,7 +710,7 @@ export class Menu<C extends Context = Context>
             if (row < 0 || col < 0)
                 throw new Error(`Invalid button position '${row}/${col}'`)
             const reply_markup = menu
-            const navInstaller = this.navInstaller(menu, payload)
+            const navInstaller = this.navInstaller(menu)
             /** Defines what happens if the used menu is outdated */
             function menuIsOutdated() {
                 const outdated = reply_markup.options.onMenuOutdated
@@ -753,12 +753,8 @@ export class Menu<C extends Context = Context>
         return composer.middleware()
     }
 
-    private navInstaller<C extends Context>(
-        menu: Menu<C>,
-        payload: string
-    ): Middleware<C> {
+    private navInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
         return async (ctx, next) => {
-            // define control panel
             const controlPanel: MenuFlavor = {
                 // TODO: do not update menu immediately!
 
