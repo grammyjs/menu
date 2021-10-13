@@ -10,7 +10,7 @@ import {
 } from './deps.deno.ts'
 
 const b = 0xff // mask for lowest byte
-const hex = (n: number) => n.toString(16)
+const toNums = (str: string) => Array.from(str).map(c => c.codePointAt(0)!)
 const enc = new TextEncoder()
 const dec = new TextDecoder()
 /** Computes how long the byte representation of a string is */
@@ -31,6 +31,7 @@ function tinyHash(nums: number[]): string {
  * `ctx.menu`, a control pane for the respective menu.
  */
 export interface MenuFlavor {
+    match?: string
     /**
      * Control panel for the currently active menu. `ctx.menu` is only available
      * for listeners that are passed as handlers to a menu, and it allows you to
@@ -109,6 +110,10 @@ type Cb<C extends Context> = Omit<
      * Optional fingerprint for this button
      */
     fingerprint?: DynamicString<C>
+    /**
+     * Optional payload for this button
+     */
+    payload?: DynamicString<C>
 }
 type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>
 type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, 'text'> : T
@@ -244,13 +249,20 @@ class Range<C extends Context> {
      * })
      * ```
      *
-     * @param text The text to display, or a text with a fingerprint
+     * @param text The text to display, or a text with fingerprint/payload
      * @param middleware The listeners to call when the button is pressed
      */
     text(
         text:
             | DynamicString<C>
-            | { text: DynamicString<C>; fingerprint: DynamicString<C> },
+            | {
+                  /** Text to display */
+                  text: DynamicString<C>
+                  /** Optional fingerprint of the button */
+                  fingerprint?: DynamicString<C>
+                  /** Optional payload */
+                  payload?: DynamicString<C>
+              },
         ...middleware: MenuMiddleware<C>[]
     ) {
         return this.add(
@@ -351,14 +363,20 @@ class Range<C extends Context> {
         text: DynamicString<C>,
         menu: string,
         options: {
-            /**
-             * Middleware to run when the navigation is performed.
-             */
+            /** Middleware to run when the navigation is performed */
             onAction?: MenuMiddleware<C>
+            /** Optional fingerprint of the button */
+            fingerprint?: DynamicString<C>
+            /** Optional payload */
+            payload?: DynamicString<C>
         } = {}
     ) {
         return this.text(
-            text,
+            {
+                text,
+                fingerprint: options.fingerprint,
+                payload: options.payload,
+            },
             ...(options.onAction === undefined ? [] : [options.onAction]),
             ctx => ctx.menu.nav(menu)
         )
@@ -373,14 +391,20 @@ class Range<C extends Context> {
     back(
         text: DynamicString<C>,
         options: {
-            /**
-             * Middleware to run when the navigation is performed.
-             */
+            /** Middleware to run when the navigation is performed */
             onAction?: MenuMiddleware<C>
+            /** Optional fingerprint of the button */
+            fingerprint?: DynamicString<C>
+            /** Optional payload */
+            payload?: DynamicString<C>
         } = {}
     ) {
         return this.text(
-            text,
+            {
+                text,
+                fingerprint: options.fingerprint,
+                payload: options.payload,
+            },
             ...(options.onAction === undefined ? [] : [options.onAction]),
             ctx => ctx.menu.back()
         )
@@ -463,7 +487,7 @@ export interface MenuOptions<C extends Context> {
      * Alternatively, you can specify custon middleware that will be invoked and
      * that can handle this case as you wish. You should update the menu yourself, or
      */
-    onMenuOutdated?: string | Middleware<Filter<C, 'callback_query:data'>>
+    onMenuOutdated?: string | MenuMiddleware<C>
 }
 
 /**
@@ -609,26 +633,22 @@ export class Menu<C extends Context = Context>
         const renderer = createRenderer(
             ctx,
             async (btn, i, j): Promise<InlineKeyboardButton> => {
-                const text =
-                    typeof btn.text === 'function'
-                        ? await btn.text(ctx)
-                        : btn.text
+                const text = await uniform(ctx, btn.text)
                 if ('middleware' in btn) {
+                    const row = i.toString(16)
+                    const col = j.toString(16)
+                    const payload = await uniform(ctx, btn.payload, '')
+                    if (payload.includes('/'))
+                        throw new Error(
+                            `Could not render menu '${this.id}'! Payload must not contain a '/' character but was '${payload}'`
+                        )
                     // Add empty string if no fingerprint is given. We will then
                     // later append a hash once we know the complete menu layout
                     const fp =
                         btn.fingerprint === undefined
                             ? ''
-                            : `f${
-                                  typeof btn.fingerprint === 'function'
-                                      ? await btn.fingerprint(ctx)
-                                      : btn.fingerprint
-                              }`
-                    if (fp.includes('/'))
-                        throw new Error(
-                            `Could not render menu: '${this.id}' fingerprint must not contain a '/' character ('${fp}')`
-                        )
-                    const callback_data = `${this.id}/${hex(i)}/${hex(j)}/${fp}`
+                            : `f${await uniform(ctx, btn.fingerprint)}`
+                    const callback_data = `${this.id}/${row}/${col}/${payload}/${fp}`
                     return { callback_data, text }
                 } else return { ...btn, text }
             }
@@ -640,8 +660,7 @@ export class Menu<C extends Context = Context>
         for (const row of rendered) {
             for (const btn of row) {
                 if ('callback_data' in btn && btn.callback_data.endsWith('/')) {
-                    const label = btn.text
-                    const data = Array.from(label).map(c => c.codePointAt(0)!)
+                    const data = toNums(btn.text)
                     btn.callback_data += `h${tinyHash(lengths.concat(data))}`
                 }
             }
@@ -679,51 +698,49 @@ export class Menu<C extends Context = Context>
             return next()
         })
         composer.on('callback_query:data').lazy(async ctx => {
-            const [path, rowStr, colStr, hash] =
+            const [path, rowStr, colStr, payload, fingerprint] =
                 ctx.callbackQuery.data.split('/')
+            if (payload) ctx.match = payload
             if (!rowStr || !colStr) return []
             const menu = this.index.get(path)
             if (menu === undefined) return []
-            const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn)
             const row = parseInt(rowStr, 16)
             const col = parseInt(colStr, 16)
             if (row < 0 || col < 0)
                 throw new Error(`Invalid button position '${row}/${col}'`)
             const reply_markup = menu
+            const navInstaller = this.navInstaller(menu, payload)
             /** Defines what happens if the used menu is outdated */
-            function menuIsOutdated(): Middleware<
-                Filter<C, 'callback_query:data'>
-            > {
-                if (typeof reply_markup.options.onMenuOutdated === 'string') {
-                    const text = reply_markup.options.onMenuOutdated
-                    return async (ctx: C) => {
-                        await ctx.answerCallbackQuery({ text })
-                        await ctx.editMessageReplyMarkup({ reply_markup })
-                    }
-                } else return reply_markup.options.onMenuOutdated
+            function menuIsOutdated() {
+                const outdated = reply_markup.options.onMenuOutdated
+                return typeof outdated !== 'string'
+                    ? [navInstaller, outdated as Middleware<C>]
+                    : (ctx: C) =>
+                          Promise.all([
+                              ctx.answerCallbackQuery({ text: outdated }),
+                              ctx.editMessageReplyMarkup({ reply_markup }),
+                          ])
             }
+            const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn)
             let keyboard: RawRange<C> = await renderer(menu[ops])
             if (row >= keyboard.length || col >= keyboard[row].length)
                 return menuIsOutdated()
             const btn = keyboard[row][col]
             if (!('middleware' in btn)) return menuIsOutdated()
-            const label =
-                typeof btn.text === 'function' ? await btn.text(ctx) : btn.text
-            let expectedHash: string
+            const label = await uniform(ctx, btn.text)
+            const expectedPayload = await uniform(ctx, btn.payload)
+            if (payload !== expectedPayload) return menuIsOutdated()
+            let expectedFingerprint: string
             if (btn.fingerprint === undefined) {
                 const lengths = keyboard.map(row => row.length)
-                const chars = Array.from(label).map(c => c.codePointAt(0)!)
-                const data = [keyboard.length, ...lengths, ...chars]
-                expectedHash = `h${tinyHash(data)}`
+                const data = [keyboard.length, ...lengths, ...toNums(label)]
+                const fp = tinyHash(data)
+                expectedFingerprint = `h${fp}`
             } else {
-                const fp =
-                    typeof btn.fingerprint === 'function'
-                        ? await btn.fingerprint(ctx)
-                        : btn.fingerprint
-                expectedHash = `f${fp}`
+                const fp = await uniform(ctx, btn.fingerprint)
+                expectedFingerprint = `f${fp}`
             }
-            if (hash !== expectedHash) return menuIsOutdated()
-            const navInstaller = this.navInstaller(menu)
+            if (fingerprint !== expectedFingerprint) return menuIsOutdated()
             const handler = btn.middleware as Middleware<C>[]
             const mw = [navInstaller, ...handler]
             if (!menu.options.autoAnswer) return mw
@@ -735,8 +752,12 @@ export class Menu<C extends Context = Context>
         return composer.middleware()
     }
 
-    private navInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
+    private navInstaller<C extends Context>(
+        menu: Menu<C>,
+        payload: string
+    ): Middleware<C> {
         return async (ctx, next) => {
+            // define control panel
             const controlPanel: MenuFlavor = {
                 // TODO: do not update menu immediately!
 
@@ -747,7 +768,9 @@ export class Menu<C extends Context = Context>
                 // performing an extra API call.
                 menu: {
                     update: async () => {
-                        await ctx.editMessageReplyMarkup({ reply_markup: menu })
+                        await ctx.editMessageReplyMarkup({
+                            reply_markup: menu,
+                        })
                     },
                     close: async () => {
                         await ctx.editMessageReplyMarkup()
@@ -769,6 +792,8 @@ export class Menu<C extends Context = Context>
                     },
                 },
             }
+            // provide payload on `ctx.match` if it is not empty
+            if (payload) controlPanel.match = payload
             // register ctx.menu
             Object.assign(ctx, controlPanel)
             try {
@@ -811,4 +836,14 @@ function createRenderer<C extends Context, B>(
         return k
     }
     return ops => ops.reduce(layout, Promise.resolve([[]]))
+}
+
+function uniform<C extends Context>(
+    ctx: C,
+    value: string | ((ctx: C) => MaybePromise<string>) | undefined,
+    fallback = ''
+): MaybePromise<string> {
+    if (value === undefined) return fallback
+    else if (typeof value === 'function') return value(ctx)
+    else return value
 }
