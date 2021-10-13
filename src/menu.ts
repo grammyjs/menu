@@ -700,6 +700,7 @@ export class Menu<C extends Context = Context>
         composer.on('callback_query:data').lazy(async ctx => {
             const [path, rowStr, colStr, payload, fingerprint] =
                 ctx.callbackQuery.data.split('/')
+            // provide payload on `ctx.match` if it is not empty
             if (payload) ctx.match = payload
             if (!rowStr || !colStr) return []
             const menu = this.index.get(path)
@@ -768,9 +769,7 @@ export class Menu<C extends Context = Context>
                 // performing an extra API call.
                 menu: {
                     update: async () => {
-                        await ctx.editMessageReplyMarkup({
-                            reply_markup: menu,
-                        })
+                        await ctx.editMessageReplyMarkup({ reply_markup: menu })
                     },
                     close: async () => {
                         await ctx.editMessageReplyMarkup()
@@ -792,8 +791,6 @@ export class Menu<C extends Context = Context>
                     },
                 },
             }
-            // provide payload on `ctx.match` if it is not empty
-            if (payload) controlPanel.match = payload
             // register ctx.menu
             Object.assign(ctx, controlPanel)
             try {
