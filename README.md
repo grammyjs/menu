@@ -17,7 +17,7 @@ bot.use(menu)
 
 bot.command('start', async ctx => {
   // Send the menu:
-  await ctx.reply(12345, 'Check out this menu:', {
+  await ctx.reply('Check out this menu:', {
     reply_markup: menu
   })
 })
