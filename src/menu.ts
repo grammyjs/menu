@@ -679,7 +679,7 @@ export class Menu<C extends Context = Context>
             return next()
         })
         composer.on('callback_query:data').lazy(async ctx => {
-            const [path, rowStr, colStr, hash] =
+            const [path, rowStr, colStr, ...callbackData] =
                 ctx.callbackQuery.data.split('/')
             if (!rowStr || !colStr) return []
             const menu = this.index.get(path)
@@ -687,6 +687,7 @@ export class Menu<C extends Context = Context>
             const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn)
             const row = parseInt(rowStr, 16)
             const col = parseInt(colStr, 16)
+            const hash = callbackData.join('/')
             if (row < 0 || col < 0)
                 throw new Error(`Invalid button position '${row}/${col}'`)
             const reply_markup = menu
