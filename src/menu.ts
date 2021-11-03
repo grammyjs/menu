@@ -698,7 +698,7 @@ export class Menu<C extends Context = Context>
             return next()
         })
         composer.on('callback_query:data').lazy(async ctx => {
-            const [path, rowStr, colStr, payload, fingerprint] =
+            const [path, rowStr, colStr, payload, ...fingerprint] =
                 ctx.callbackQuery.data.split('/')
             // provide payload on `ctx.match` if it is not empty
             if (payload) ctx.match = payload
@@ -707,6 +707,7 @@ export class Menu<C extends Context = Context>
             if (menu === undefined) return []
             const row = parseInt(rowStr, 16)
             const col = parseInt(colStr, 16)
+            const hash = fingerprint.join('/')
             if (row < 0 || col < 0)
                 throw new Error(`Invalid button position '${row}/${col}'`)
             const reply_markup = menu
