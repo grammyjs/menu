@@ -7,23 +7,23 @@ import {
     LoginUrl,
     Middleware,
     MiddlewareObj,
-} from './deps.deno.ts'
+} from "./deps.deno.ts";
 
-const b = 0xff // mask for lowest byte
-const hex = (n: number) => n.toString(16)
-const enc = new TextEncoder()
-const dec = new TextDecoder()
+const b = 0xff; // mask for lowest byte
+const toNums = (str: string) => Array.from(str).map((c) => c.codePointAt(0)!);
+const enc = new TextEncoder();
+const dec = new TextDecoder();
 /** Computes how long the byte representation of a string is */
 function countBytes(str: string): number {
-    return enc.encode(str).length
+    return enc.encode(str).length;
 }
 /** Efficiently computes a 4-byte hash of an int32 array */
 function tinyHash(nums: number[]): string {
     // Inspired by JDK7's hashCode with different primes for a better distribution
-    let hash = 17
-    for (const n of nums) hash = ((hash << 5) + (hash << 2) + hash + n) >>> 0 // hash = 37 * hash + n
-    const bytes = [hash >>> 24, (hash >> 16) & b, (hash >> 8) & b, hash & b]
-    return dec.decode(Uint8Array.from(bytes)) // turn bytes into string
+    let hash = 17;
+    for (const n of nums) hash = ((hash << 5) + (hash << 2) + hash + n) >>> 0; // hash = 37 * hash + n
+    const bytes = [hash >>> 24, (hash >> 16) & b, (hash >> 8) & b, hash & b];
+    return dec.decode(Uint8Array.from(bytes)); // turn bytes into string
 }
 
 /**
@@ -31,6 +31,7 @@ function tinyHash(nums: number[]): string {
  * `ctx.menu`, a control pane for the respective menu.
  */
 export interface MenuFlavor {
+    match?: string;
     /**
      * Control panel for the currently active menu. `ctx.menu` is only available
      * for listeners that are passed as handlers to a menu, and it allows you to
@@ -58,18 +59,18 @@ export interface MenuFlavor {
          * button that changes its text based on `ctx`, then you should call
          * this method to update it.
          */
-        update: () => void
+        update: () => void;
         /**
          * Closes the menu. Removes all buttons underneath the message.
          */
-        close: () => void
+        close: () => void;
         /**
          * Navigates to the parent menu. By default, the parent menu is the menu
          * on which you called `register` when installing this menu.
          *
          * Throws an error if this menu does not have a parent menu.
          */
-        back: () => void
+        back: () => void;
         /**
          * Navigates to the specified submenu. The given identifier is the same
          * string that you pass to `new Menu('')`. If you specify the identifier
@@ -79,39 +80,41 @@ export interface MenuFlavor {
          * Remember that you must register all submenus at the root menu using
          * the `register` method before you can navigate between them.
          */
-        nav: (to: string) => void
-    }
+        nav: (to: string) => void;
+    };
 }
 
 /**
  * Middleware that has access to the `ctx.menu` control panel.
  */
 type MenuMiddleware<C extends Context> = Middleware<
-    Filter<C, 'callback_query:data'> & MenuFlavor
->
+    Filter<C, "callback_query:data"> & MenuFlavor
+>;
 
-type MaybePromise<T> = T | Promise<T>
+type MaybePromise<T> = T | Promise<T>;
 /** String or potentially async function that generates a string */
 type DynamicString<C extends Context> =
     | string
-    | ((ctx: C) => MaybePromise<string>)
+    | ((ctx: C) => MaybePromise<string>);
 
-type Cb<C extends Context> = Omit<
-    InlineKeyboardButton.CallbackButton,
-    'callback_data'
-> & {
-    /**
-     * Middleware that will be invoked if a callback query for this button is
-     * received.
-     */
-    middleware: MenuMiddleware<C>[]
-    /**
-     * Optional fingerprint for this button
-     */
-    fingerprint?: DynamicString<C>
-}
-type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>
-type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, 'text'> : T
+type Cb<C extends Context> =
+    & Omit<
+        InlineKeyboardButton.CallbackButton,
+        "callback_data"
+    >
+    & {
+        /**
+         * Middleware that will be invoked if a callback query for this button is
+         * received.
+         */
+        middleware: MenuMiddleware<C>[];
+        /**
+         * Optional payload for this button
+         */
+        payload?: DynamicString<C>;
+    };
+type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>;
+type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, "text"> : T;
 /**
  * Button of a menu. Almost the same type as InlineKeyboardButton but with texts
  * that can be generated on the fly, and middleware for callback buttons.
@@ -122,45 +125,45 @@ export type MenuButton<C extends Context> = {
      * function is supplied with the context object that is used to make the
      * request.
      */
-    text: DynamicString<C>
-} & RemoveAllTexts<NoCb | Cb<C>>
+    text: DynamicString<C>;
+} & RemoveAllTexts<NoCb | Cb<C>>;
 
 /**
  * Raw menu range, i.e. a two-dimensional array of menu buttons.
  */
-type RawRange<C extends Context> = MenuButton<C>[][]
+type RawRange<C extends Context> = MenuButton<C>[][];
 /**
  * Range instance, or a raw (static) range that consists of a two-dimensional
  * menu button array.
  */
-type MaybeRawRange<C extends Context> = Range<C> | RawRange<C>
+type MaybeRawRange<C extends Context> = Range<C> | RawRange<C>;
 /**
  * Potentially async function that generates a potentially raw range.
  */
 type DynamicRange<C extends Context> = (
-    ctx: C
-) => MaybePromise<MaybeRawRange<C>>
+    ctx: C,
+) => MaybePromise<MaybeRawRange<C>>;
 /**
  * Potentially dynamic range.
  */
-type MaybeDynamicRange<C extends Context> = MaybeRawRange<C> | DynamicRange<C>
+type MaybeDynamicRange<C extends Context> = MaybeRawRange<C> | DynamicRange<C>;
 
-const ops = Symbol('menu building operations')
+const ops = Symbol("menu building operations");
 
 /**
  * A range is a two-dimensional array of menu buttons.
  */
 class Range<C extends Context> {
     /** List of range generator functions */
-    [ops]: Array<MaybeDynamicRange<C>> = []
+    [ops]: Array<MaybeDynamicRange<C>> = [];
     /**
      * This method is used internally whenever a new range is added.
      *
      * @param range A range object or a two-dimensional array of menu buttons
      */
     private addRange(range: MaybeDynamicRange<C>) {
-        this[ops].push(range)
-        return this
+        this[ops].push(range);
+        return this;
     }
     /**
      * This method is used internally whenever a new single button is added.
@@ -168,14 +171,14 @@ class Range<C extends Context> {
      * @param btn menu button object
      */
     private add(btn: MenuButton<C>) {
-        return this.addRange([[btn]])
+        return this.addRange([[btn]]);
     }
     /**
      * Adds a 'line break'. Call this method to make sure that the next added
      * buttons will be on a new row.
      */
     row() {
-        return this.addRange([[], []])
+        return this.addRange([[], []]);
     }
     /**
      * Adds a new URL button. Telegram clients will open the provided URL when
@@ -186,7 +189,7 @@ class Range<C extends Context> {
      * @param url HTTP or tg:// url to be opened when button is pressed
      */
     url(text: DynamicString<C>, url: string) {
-        return this.add({ text, url })
+        return this.add({ text, url });
     }
     /**
      * Adds a new login button. This can be used as a replacement for the
@@ -199,9 +202,10 @@ class Range<C extends Context> {
     login(text: DynamicString<C>, loginUrl: string | LoginUrl) {
         return this.add({
             text,
-            login_url:
-                typeof loginUrl === 'string' ? { url: loginUrl } : loginUrl,
-        })
+            login_url: typeof loginUrl === "string"
+                ? { url: loginUrl }
+                : loginUrl,
+        });
     }
     /**
      * Adds a new text button. You may pass any number of listeners. They will
@@ -244,20 +248,25 @@ class Range<C extends Context> {
      * })
      * ```
      *
-     * @param text The text to display, or a text with a fingerprint
+     * @param text The text to display, or a text with payload
      * @param middleware The listeners to call when the button is pressed
      */
     text(
         text:
             | DynamicString<C>
-            | { text: DynamicString<C>; fingerprint: DynamicString<C> },
+            | {
+                /** Text to display */
+                text: DynamicString<C>;
+                /** Optional payload */
+                payload?: DynamicString<C>;
+            },
         ...middleware: MenuMiddleware<C>[]
     ) {
         return this.add(
-            typeof text === 'object'
+            typeof text === "object"
                 ? { ...text, middleware }
-                : { text, middleware }
-        )
+                : { text, middleware },
+        );
     }
     /**
      * Adds a new inline query button. Telegram clients will let the user pick a
@@ -277,8 +286,8 @@ class Range<C extends Context> {
      * @param text The text to display
      * @param query The (optional) inline query string to prefill
      */
-    switchInline(text: DynamicString<C>, query = '') {
-        return this.add({ text, switch_inline_query: query })
+    switchInline(text: DynamicString<C>, query = "") {
+        return this.add({ text, switch_inline_query: query });
     }
     /**
      * Adds a new inline query button that acts on the current chat. The
@@ -298,8 +307,8 @@ class Range<C extends Context> {
      * @param text The text to display
      * @param query The (optional) inline query string to prefill
      */
-    switchInlineCurrent(text: DynamicString<C>, query = '') {
-        return this.add({ text, switch_inline_query_current_chat: query })
+    switchInlineCurrent(text: DynamicString<C>, query = "") {
+        return this.add({ text, switch_inline_query_current_chat: query });
     }
     /**
      * Adds a new game query button, confer
@@ -310,7 +319,7 @@ class Range<C extends Context> {
      * @param text The text to display
      */
     game(text: DynamicString<C>) {
-        return this.add({ text, callback_game: {} })
+        return this.add({ text, callback_game: {} });
     }
     /**
      * Adds a new payment button, confer
@@ -321,7 +330,7 @@ class Range<C extends Context> {
      * @param text The text to display
      */
     pay(text: DynamicString<C>) {
-        return this.add({ text, pay: true })
+        return this.add({ text, pay: true });
     }
     /**
      * Adds a button that navigates to a given submenu when pressed. You can
@@ -351,17 +360,17 @@ class Range<C extends Context> {
         text: DynamicString<C>,
         menu: string,
         options: {
-            /**
-             * Middleware to run when the navigation is performed.
-             */
-            onAction?: MenuMiddleware<C>
-        } = {}
+            /** Middleware to run when the navigation is performed */
+            onAction?: MenuMiddleware<C>;
+            /** Optional payload */
+            payload?: DynamicString<C>;
+        } = {},
     ) {
         return this.text(
-            text,
+            { text, payload: options.payload },
             ...(options.onAction === undefined ? [] : [options.onAction]),
-            ctx => ctx.menu.nav(menu)
-        )
+            (ctx) => ctx.menu.nav(menu),
+        );
     }
     /**
      * Adds a text button that performs a navigation to the parent menu via
@@ -373,17 +382,17 @@ class Range<C extends Context> {
     back(
         text: DynamicString<C>,
         options: {
-            /**
-             * Middleware to run when the navigation is performed.
-             */
-            onAction?: MenuMiddleware<C>
-        } = {}
+            /** Middleware to run when the navigation is performed */
+            onAction?: MenuMiddleware<C>;
+            /** Optional payload */
+            payload?: DynamicString<C>;
+        } = {},
     ) {
         return this.text(
-            text,
+            { text, payload: options.payload },
             ...(options.onAction === undefined ? [] : [options.onAction]),
-            ctx => ctx.menu.back()
-        )
+            (ctx) => ctx.menu.back(),
+        );
     }
     /**
      * This is a dynamic way to initialize menu. A typical use case is when you
@@ -405,18 +414,19 @@ class Range<C extends Context> {
     dynamic(
         rangeBuilder: (
             ctx: C,
-            range: Range<C>
-        ) => MaybePromise<MaybeRawRange<C> | void>
+            range: Range<C>,
+        ) => MaybePromise<MaybeRawRange<C> | void>,
     ) {
         return this.addRange(async (ctx: C) => {
-            const range = new Range<C>()
-            const res = await rangeBuilder(ctx, range)
-            if (res instanceof Menu)
+            const range = new Range<C>();
+            const res = await rangeBuilder(ctx, range);
+            if (res instanceof Menu) {
                 throw new Error(
-                    'Cannot use a `Menu` instance as a dynamic range, did you mean to return an instance of `Menu.Range` instead?'
-                )
-            return res instanceof Range ? res : range
-        })
+                    "Cannot use a `Menu` instance as a dynamic range, did you mean to return an instance of `Menu.Range` instead?",
+                );
+            }
+            return res instanceof Range ? res : range;
+        });
     }
     /**
      * Appends a given range to this range. This will effectively replay all
@@ -426,9 +436,9 @@ class Range<C extends Context> {
      */
     append(range: MaybeRawRange<C>) {
         if (range instanceof Range) {
-            this[ops].push(...range[ops])
-            return this
-        } else return this.addRange(range)
+            this[ops].push(...range[ops]);
+            return this;
+        } else return this.addRange(range);
     }
 }
 
@@ -442,7 +452,7 @@ export interface MenuOptions<C extends Context> {
      * you need to send custom messages, you can set `autoAnswer` to `false` to
      * disable this behavior.
      */
-    autoAnswer?: boolean
+    autoAnswer?: boolean;
     /**
      * A menu is rendered once when it is sent, and once when a callback query
      * arrives. After all, we could not store all rendered menus in all chats
@@ -463,7 +473,24 @@ export interface MenuOptions<C extends Context> {
      * Alternatively, you can specify custon middleware that will be invoked and
      * that can handle this case as you wish. You should update the menu yourself, or
      */
-    onMenuOutdated?: string | Middleware<Filter<C, 'callback_query:data'>>
+    onMenuOutdated?: string | MenuMiddleware<C>;
+    /**
+     * Fingerprint function that lets you generate a unique string every time a
+     * menu is rendered. Used to determine if a menu is outdated.
+     *
+     * The built-in heuristic that determines whether a menu is outdated takes
+     * the following things into account:
+     * - identifier of the menu
+     * - shape of the menu
+     * - position of the pressed button
+     * - potential payload
+     * - text of the pressed button
+     *
+     * If all of these things are identical but the menu is still outdated, you
+     * can use this option to supply the neccessary data that lets the menu
+     * plugin determine more accurately if the menu is outdated.
+     */
+    fingerprint?: ((ctx: C) => MaybePromise<string>);
 }
 
 /**
@@ -496,20 +523,18 @@ export interface MenuOptions<C extends Context> {
  * to see how you can create menus that span several pages, how to navigate
  * between them, and more.
  */
-export class Menu<C extends Context = Context>
-    extends Range<C>
-    implements MiddlewareObj<C>, InlineKeyboardMarkup
-{
-    private parent: string | undefined = undefined
-    private index: Map<string, Menu<C>> = new Map()
-    private readonly options: Required<MenuOptions<C>>
+export class Menu<C extends Context = Context> extends Range<C>
+    implements MiddlewareObj<C>, InlineKeyboardMarkup {
+    private parent: string | undefined = undefined;
+    private index: Map<string, Menu<C>> = new Map();
+    private readonly options: Required<MenuOptions<C>>;
 
     /**
      * A menu range is a part of the two-dimensional array of menu buttons. This
      * is mostly useful if you want to dynamically generate the structure of the
      * menu on the fly.
      */
-    static Range = Range
+    static Range = Range;
 
     /**
      * Creates a new menu with the given identifier.
@@ -523,20 +548,25 @@ export class Menu<C extends Context = Context>
      * @param autoAnswer Flag to disable automatic query answering
      */
     constructor(private readonly id: string, options: MenuOptions<C> = {}) {
-        super()
+        super();
         // (id + row + col + prefix + hash) <= 64 bytes
-        if (countBytes(id + '/xx/yy/') + 1 + 4 > 64)
+        if (countBytes(id + "/xx/yy/") + 1 + 4 > 64) {
             throw new Error(
-                `Please use a shorter menu identifier than '${this.id}'! It causes the payload sizes to exceed 64 bytes!`
-            )
-        if (id.includes('/'))
-            throw new Error(`You cannot use '/' in a menu identifier ('${id}')`)
-        this.index.set(id, this)
+                `Please use a shorter menu identifier than '${this.id}'! It causes the payload sizes to exceed 64 bytes!`,
+            );
+        }
+        if (id.includes("/")) {
+            throw new Error(
+                `You cannot use '/' in a menu identifier ('${id}')`,
+            );
+        }
+        this.index.set(id, this);
         this.options = {
             autoAnswer: options.autoAnswer ?? true,
-            onMenuOutdated:
-                options.onMenuOutdated ?? 'Menu was outdated, try again!',
-        }
+            onMenuOutdated: options.onMenuOutdated ??
+                "Menu was outdated, try again!",
+            fingerprint: options.fingerprint ?? "",
+        };
     }
     /**
      * Used internally by the menu, do not touch or you'll burn yourself.
@@ -544,10 +574,10 @@ export class Menu<C extends Context = Context>
     public readonly inline_keyboard = new Proxy([], {
         get: () => {
             throw new Error(
-                `Cannot send menu '${this.id}'! Did you forget to use bot.use() for it?`
-            )
+                `Cannot send menu '${this.id}'! Did you forget to use bot.use() for it?`,
+            );
         },
-    })
+    });
     /**
      * Registers a submenu. This makes it accessible for navigation, and sets
      * its parent menu to this menu.
@@ -564,17 +594,18 @@ export class Menu<C extends Context = Context>
      * @param parent An optional parent menu identifier
      */
     register(menus: Menu<C> | Menu<C>[], parent = this.id) {
-        const arr = Array.isArray(menus) ? menus : [menus]
-        const existing = arr.find(m => this.index.has(m.id))
-        if (existing !== undefined)
-            throw new Error(`Menu '${existing.id}' already registered!`)
+        const arr = Array.isArray(menus) ? menus : [menus];
+        const existing = arr.find((m) => this.index.has(m.id));
+        if (existing !== undefined) {
+            throw new Error(`Menu '${existing.id}' already registered!`);
+        }
         for (const menu of arr) {
             // `menu.index` includes `menu` itself
             menu.index.forEach((m, id) => {
-                this.index.set(id, m)
-                m.index = this.index
-            })
-            menu.parent = parent
+                this.index.set(id, m);
+                m.index = this.index;
+            });
+            menu.parent = parent;
         }
     }
     /**
@@ -585,16 +616,16 @@ export class Menu<C extends Context = Context>
      * @returns The identified menu
      */
     at(id: string) {
-        const menu = this.index.get(id)
+        const menu = this.index.get(id);
         if (menu === undefined) {
             const validIds = Array.from(this.index.keys())
-                .map(k => `'${k}'`)
-                .join(', ')
+                .map((k) => `'${k}'`)
+                .join(", ");
             throw new Error(
-                `Menu '${id}' is not known to menu '${this.id}'! Known submenus are: ${validIds}`
-            )
+                `Menu '${id}' is not known to menu '${this.id}'! Known submenus are: ${validIds}`,
+            );
         }
-        return menu
+        return menu;
     }
 
     /**
@@ -609,44 +640,42 @@ export class Menu<C extends Context = Context>
         const renderer = createRenderer(
             ctx,
             async (btn, i, j): Promise<InlineKeyboardButton> => {
-                const text =
-                    typeof btn.text === 'function'
-                        ? await btn.text(ctx)
-                        : btn.text
-                if ('middleware' in btn) {
-                    // Add empty string if no fingerprint is given. We will then
-                    // later append a hash once we know the complete menu layout
-                    const fp =
-                        btn.fingerprint === undefined
-                            ? ''
-                            : `f${
-                                  typeof btn.fingerprint === 'function'
-                                      ? await btn.fingerprint(ctx)
-                                      : btn.fingerprint
-                              }`
-                    if (fp.includes('/'))
+                const text = await uniform(ctx, btn.text);
+                if ("middleware" in btn) {
+                    const row = i.toString(16);
+                    const col = j.toString(16);
+                    const payload = await uniform(ctx, btn.payload, "");
+                    if (payload.includes("/")) {
                         throw new Error(
-                            `Could not render menu: '${this.id}' fingerprint must not contain a '/' character ('${fp}')`
-                        )
-                    const callback_data = `${this.id}/${hex(i)}/${hex(j)}/${fp}`
-                    return { callback_data, text }
-                } else return { ...btn, text }
-            }
-        )
+                            `Could not render menu '${this.id}'! Payload must not contain a '/' character but was '${payload}'`,
+                        );
+                    }
+                    const callback_data =
+                        `${this.id}/${row}/${col}/${payload}/`;
+                    return { callback_data, text };
+                } else return { ...btn, text };
+            },
+        );
         // Render button array
-        const rendered = await renderer(this[ops])
-        // Inject hash values to detect keyboard changes
-        const lengths = [rendered.length, ...rendered.map(row => row.length)]
+        const rendered = await renderer(this[ops]);
+        // Get shape of array
+        const lengths = [rendered.length, ...rendered.map((row) => row.length)];
+        // Generate fingerprint
+        const fingerprint = await uniform(ctx, this.options.fingerprint);
         for (const row of rendered) {
             for (const btn of row) {
-                if ('callback_data' in btn && btn.callback_data.endsWith('/')) {
-                    const label = btn.text
-                    const data = Array.from(label).map(c => c.codePointAt(0)!)
-                    btn.callback_data += `h${tinyHash(lengths.concat(data))}`
+                if ("callback_data" in btn) {
+                    // Inject hash values to detect keyboard changes
+                    const data = [
+                        ...lengths,
+                        ...toNums(btn.text),
+                        ...toNums(fingerprint),
+                    ];
+                    btn.callback_data += tinyHash(data);
                 }
             }
         }
-        return rendered
+        return rendered;
     }
 
     /**
@@ -660,80 +689,83 @@ export class Menu<C extends Context = Context>
      */
     private async prepare(payload: Record<string, unknown>, ctx: C) {
         if (payload.reply_markup instanceof Menu) {
-            const menu = this.index.get(payload.reply_markup.id)
+            const menu = this.index.get(payload.reply_markup.id);
             if (menu !== undefined) {
-                const rendered = await menu.render(ctx)
-                payload.reply_markup = { inline_keyboard: rendered }
+                const rendered = await menu.render(ctx);
+                payload.reply_markup = { inline_keyboard: rendered };
             }
         }
     }
     middleware() {
         const composer = new Composer<C>((ctx, next) => {
             ctx.api.config.use(async (prev, method, payload, signal) => {
-                const p: Record<string, unknown> = payload
-                if (Array.isArray(p.results))
-                    await Promise.all(p.results.map(r => this.prepare(r, ctx)))
-                else await this.prepare(p, ctx)
-                return await prev(method, payload, signal)
-            })
-            return next()
-        })
-        composer.on('callback_query:data').lazy(async ctx => {
-            const [path, rowStr, colStr, ...callbackData] =
-                ctx.callbackQuery.data.split('/')
-            if (!rowStr || !colStr) return []
-            const menu = this.index.get(path)
-            if (menu === undefined) return []
-            const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn)
-            const row = parseInt(rowStr, 16)
-            const col = parseInt(colStr, 16)
-            const hash = callbackData.join('/')
-            if (row < 0 || col < 0)
-                throw new Error(`Invalid button position '${row}/${col}'`)
-            const reply_markup = menu
+                const p: Record<string, unknown> = payload;
+                if (Array.isArray(p.results)) {
+                    await Promise.all(
+                        p.results.map((r) => this.prepare(r, ctx)),
+                    );
+                } else await this.prepare(p, ctx);
+                return await prev(method, payload, signal);
+            });
+            return next();
+        });
+        composer.on("callback_query:data").lazy(async (ctx) => {
+            const [path, rowStr, colStr, payload, ...rest] = ctx
+                .callbackQuery.data.split("/");
+            if (!rowStr || !colStr) return [];
+            const menu = this.index.get(path);
+            if (menu === undefined) return [];
+            const row = parseInt(rowStr, 16);
+            const col = parseInt(colStr, 16);
+            if (row < 0 || col < 0) {
+                throw new Error(`Invalid button position '${row}/${col}'`);
+            }
+            const reply_markup = menu;
+            // provide payload on `ctx.match` if it is not empty
+            if (payload) ctx.match = payload;
+            const navInstaller = this.navInstaller(menu);
             /** Defines what happens if the used menu is outdated */
-            function menuIsOutdated(): Middleware<
-                Filter<C, 'callback_query:data'>
-            > {
-                if (typeof reply_markup.options.onMenuOutdated === 'string') {
-                    const text = reply_markup.options.onMenuOutdated
-                    return async (ctx: C) => {
-                        await ctx.answerCallbackQuery({ text })
-                        await ctx.editMessageReplyMarkup({ reply_markup })
-                    }
-                } else return reply_markup.options.onMenuOutdated
+            function menuIsOutdated() {
+                const outdated = reply_markup.options.onMenuOutdated;
+                return typeof outdated !== "string"
+                    ? [navInstaller, outdated as Middleware<C>]
+                    : (ctx: C) =>
+                        Promise.all([
+                            ctx.answerCallbackQuery({ text: outdated }),
+                            ctx.editMessageReplyMarkup({ reply_markup }),
+                        ]);
             }
-            let keyboard: RawRange<C> = await renderer(menu[ops])
-            if (row >= keyboard.length || col >= keyboard[row].length)
-                return menuIsOutdated()
-            const btn = keyboard[row][col]
-            if (!('middleware' in btn)) return menuIsOutdated()
-            const label =
-                typeof btn.text === 'function' ? await btn.text(ctx) : btn.text
-            let expectedHash: string
-            if (btn.fingerprint === undefined) {
-                const lengths = keyboard.map(row => row.length)
-                const chars = Array.from(label).map(c => c.codePointAt(0)!)
-                const data = [keyboard.length, ...lengths, ...chars]
-                expectedHash = `h${tinyHash(data)}`
-            } else {
-                const fp =
-                    typeof btn.fingerprint === 'function'
-                        ? await btn.fingerprint(ctx)
-                        : btn.fingerprint
-                expectedHash = `f${fp}`
+            // Create renderer and perform rendering
+            const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn);
+            const range: RawRange<C> = await renderer(menu[ops]);
+            // Check dimension
+            if (row >= range.length || col >= range[row].length) {
+                return menuIsOutdated();
             }
-            if (hash !== expectedHash) return menuIsOutdated()
-            const navInstaller = this.navInstaller(menu)
-            const handler = btn.middleware as Middleware<C>[]
-            const mw = [navInstaller, ...handler]
-            if (!menu.options.autoAnswer) return mw
-            const c = new Composer<C>()
-            c.fork(ctx => ctx.answerCallbackQuery())
-            c.use(...mw)
-            return c
-        })
-        return composer.middleware()
+            // Check correct button type
+            const btn = range[row][col];
+            if (!("middleware" in btn)) return menuIsOutdated();
+            // Check payloads
+            const expectedPayload = await uniform(ctx, btn.payload);
+            if (payload !== expectedPayload) return menuIsOutdated();
+            // Check hashes
+            const hash = rest.join("/");
+            const lengths = [range.length, ...range.map((row) => row.length)];
+            const label = await uniform(ctx, btn.text);
+            const fingerprint = await uniform(ctx, this.options.fingerprint);
+            const data = [...lengths, ...toNums(label), ...toNums(fingerprint)];
+            const expectedHash = tinyHash(data);
+            if (hash !== expectedHash) return menuIsOutdated();
+            // Run handler
+            const handler = btn.middleware as Middleware<C>[];
+            const mw = [navInstaller, ...handler];
+            if (!menu.options.autoAnswer) return mw;
+            const c = new Composer<C>();
+            c.fork((ctx) => ctx.answerCallbackQuery());
+            c.use(...mw);
+            return c;
+        });
+        return composer.middleware();
     }
 
     private navInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
@@ -748,38 +780,41 @@ export class Menu<C extends Context = Context>
                 // performing an extra API call.
                 menu: {
                     update: async () => {
-                        await ctx.editMessageReplyMarkup({ reply_markup: menu })
+                        await ctx.editMessageReplyMarkup({
+                            reply_markup: menu,
+                        });
                     },
                     close: async () => {
-                        await ctx.editMessageReplyMarkup()
+                        await ctx.editMessageReplyMarkup();
                     },
                     nav: async (to: string) => {
                         await ctx.editMessageReplyMarkup({
                             reply_markup: menu.at(to),
-                        })
+                        });
                     },
                     back: async () => {
-                        const parent = menu.parent
-                        if (parent === undefined)
+                        const parent = menu.parent;
+                        if (parent === undefined) {
                             throw new Error(
-                                `Cannot navigate back from menu '${menu.id}', no known parent!`
-                            )
+                                `Cannot navigate back from menu '${menu.id}', no known parent!`,
+                            );
+                        }
                         await ctx.editMessageReplyMarkup({
                             reply_markup: menu.at(parent),
-                        })
+                        });
                     },
                 },
-            }
+            };
             // register ctx.menu
-            Object.assign(ctx, controlPanel)
+            Object.assign(ctx, controlPanel);
             try {
                 // call handlers
-                await next()
+                await next();
             } finally {
                 // unregister ctx.menu
-                Object.assign(ctx, { menu: undefined })
+                Object.assign(ctx, { menu: undefined });
             }
-        }
+        };
     }
 }
 
@@ -788,28 +823,38 @@ function createRenderer<C extends Context, B>(
     buttonTransformer: (
         btn: MenuButton<C>,
         row: number,
-        col: number
-    ) => MaybePromise<B>
+        col: number,
+    ) => MaybePromise<B>,
 ): (ops: MaybeDynamicRange<C>[]) => Promise<B[][]> {
     async function layout(
         keyboard: Promise<B[][]>,
-        range: MaybeDynamicRange<C>
+        range: MaybeDynamicRange<C>,
     ): Promise<B[][]> {
-        const k = await keyboard
-        const btns = typeof range === 'function' ? await range(ctx) : range
-        if (btns instanceof Range) return btns[ops].reduce(layout, keyboard)
-        let first = true
+        const k = await keyboard;
+        const btns = typeof range === "function" ? await range(ctx) : range;
+        if (btns instanceof Range) return btns[ops].reduce(layout, keyboard);
+        let first = true;
         for (const row of btns) {
-            if (!first) k.push([])
-            const i = k.length - 1
+            if (!first) k.push([]);
+            const i = k.length - 1;
             for (const button of row) {
-                const j = k[i].length
-                const btn = await buttonTransformer(button, i, j)
-                k[i].push(btn)
+                const j = k[i].length;
+                const btn = await buttonTransformer(button, i, j);
+                k[i].push(btn);
             }
-            first = false
+            first = false;
         }
-        return k
+        return k;
     }
-    return ops => ops.reduce(layout, Promise.resolve([[]]))
+    return (ops) => ops.reduce(layout, Promise.resolve([[]]));
+}
+
+function uniform<C extends Context>(
+    ctx: C,
+    value: string | ((ctx: C) => MaybePromise<string>) | undefined,
+    fallback = "",
+): MaybePromise<string> {
+    if (value === undefined) return fallback;
+    else if (typeof value === "function") return value(ctx);
+    else return value;
 }
