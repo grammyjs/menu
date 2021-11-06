@@ -248,7 +248,7 @@ class Range<C extends Context> {
      * })
      * ```
      *
-     * @param text The text to display, or a text with fingerprint/payload
+     * @param text The text to display, or a text with payload
      * @param middleware The listeners to call when the button is pressed
      */
     text(
@@ -474,7 +474,23 @@ export interface MenuOptions<C extends Context> {
      * that can handle this case as you wish. You should update the menu yourself, or
      */
     onMenuOutdated?: string | MenuMiddleware<C>;
-    fingerprint?: DynamicString<C>;
+    /**
+     * Fingerprint function that lets you generate a unique string every time a
+     * menu is rendered. Used to determine if a menu is outdated.
+     *
+     * The built-in heuristic that determines whether a menu is outdated takes
+     * the following things into account:
+     * - identifier of the menu
+     * - shape of the menu
+     * - position of the pressed button
+     * - potential payload
+     * - text of the pressed button
+     *
+     * If all of these things are identical but the menu is still outdated, you
+     * can use this option to supply the neccessary data that lets the menu
+     * plugin determine more accurately if the menu is outdated.
+     */
+    fingerprint?: ((ctx: C) => MaybePromise<string>);
 }
 
 /**
