@@ -257,8 +257,6 @@ class Range<C extends Context> {
             | {
                 /** Text to display */
                 text: DynamicString<C>;
-                /** Optional fingerprint of the button */
-                fingerprint?: DynamicString<C>;
                 /** Optional payload */
                 payload?: DynamicString<C>;
             },
@@ -364,18 +362,12 @@ class Range<C extends Context> {
         options: {
             /** Middleware to run when the navigation is performed */
             onAction?: MenuMiddleware<C>;
-            /** Optional fingerprint of the button */
-            fingerprint?: DynamicString<C>;
             /** Optional payload */
             payload?: DynamicString<C>;
         } = {},
     ) {
         return this.text(
-            {
-                text,
-                fingerprint: options.fingerprint,
-                payload: options.payload,
-            },
+            { text, payload: options.payload },
             ...(options.onAction === undefined ? [] : [options.onAction]),
             (ctx) => ctx.menu.nav(menu),
         );
@@ -392,18 +384,12 @@ class Range<C extends Context> {
         options: {
             /** Middleware to run when the navigation is performed */
             onAction?: MenuMiddleware<C>;
-            /** Optional fingerprint of the button */
-            fingerprint?: DynamicString<C>;
             /** Optional payload */
             payload?: DynamicString<C>;
         } = {},
     ) {
         return this.text(
-            {
-                text,
-                fingerprint: options.fingerprint,
-                payload: options.payload,
-            },
+            { text, payload: options.payload },
             ...(options.onAction === undefined ? [] : [options.onAction]),
             (ctx) => ctx.menu.back(),
         );
