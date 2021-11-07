@@ -784,7 +784,14 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
 
             ctx.api.config.use((prev, method, payload, signal) => {
                 if (
-                    INJECT_METHODS.has(method) && !("reply_markup" in payload)
+                    INJECT_METHODS.has(method) &&
+                    !("reply_markup" in payload) &&
+                    "chat_id" in payload &&
+                    payload.chat_id !== undefined &&
+                    payload.chat_id === ctx.chat?.id &&
+                    "message_id" in payload &&
+                    payload.message_id !== undefined &&
+                    payload.message_id === ctx.msg?.message_id
                 ) {
                     injectMenu = false;
                     Object.assign(payload, { reply_markup: targetMenu });
