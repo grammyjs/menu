@@ -59,6 +59,9 @@ export interface MenuFlavor {
     menu: MenuControlPanel;
 }
 
+interface ImmediateConfig {
+    immediate?: boolean;
+}
 /**
  * Menu control panel. Can be used to update or close the menu, or to perform
  * manual navigation between menus.
@@ -172,7 +175,7 @@ const ops = Symbol("menu building operations");
  * menu on the fly.
  */
 export class MenuRange<C extends Context> {
-    /** List of range generator functions */
+    /** Internal list of range generator functions */
     [ops]: Array<MaybeDynamicRange<C>> = [];
     /**
      * This method is used internally whenever a new range is added.
@@ -187,7 +190,7 @@ export class MenuRange<C extends Context> {
      * This method is used internally whenever new buttons are added. Adds the
      * buttons to the current row.
      *
-     * @param btns menu button object
+     * @param btns Menu button object
      */
     add(...btns: MenuButton<C>[]) {
         return this.addRange([btns]);
@@ -435,8 +438,7 @@ export class MenuRange<C extends Context> {
      * });
      * ```
      *
-     * @param menuFactory async menu factory function
-     * @returns MiddlewareObj
+     * @param menuFactory Async menu factory function
      */
     dynamic(
         rangeBuilder: (
@@ -571,7 +573,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
      * more.
      *
      * @param id Identifier of the menu
-     * @param autoAnswer Flag to disable automatic query answering
+     * @param options Further configuration options
      */
     constructor(private readonly id: string, options: MenuOptions<C> = {}) {
         super();
@@ -600,7 +602,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     });
     /**
      * Registers a submenu. This makes it accessible for navigation, and sets
-     * its parent menu to this menu.
+     * its parent menu to `this` menu.
      *
      * Optionally, you can specify the identifier of a different parent menu as
      * a second argument. The parent menu is the menu that is targeted when
@@ -653,7 +655,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
      * concatenating all ranges, and applying the given context object to all
      * functions.
      *
-     * @param ctx context object to use
+     * @param ctx Context object to use
      */
     private async render(ctx: C) {
         // Create renderer
@@ -704,8 +706,8 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
      * `reply_markup` property of the given object is checked for containing a
      * menu.
      *
-     * @param payload payload of API call
-     * @param ctx context object
+     * @param payload Payload of API call
+     * @param ctx Context object
      */
     private async prepare(payload: Record<string, unknown>, ctx: C) {
         if (payload.reply_markup instanceof Menu) {
@@ -792,14 +794,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         return async (ctx, next) => {
             let injectMenu = false;
             let targetMenu: Menu<C> | undefined = undefined;
-            async function now(menu?: Menu<C>) {
-                injectMenu = false;
-                await ctx.editMessageReplyMarkup({ reply_markup: menu });
-            }
-            function later(menu?: Menu<C>) {
-                injectMenu = true;
-                targetMenu = menu;
-            }
+
             ctx.api.config.use((prev, method, payload, signal) => {
                 if (
                     INJECT_METHODS.has(method) && !("reply_markup" in payload)
@@ -809,34 +804,28 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 }
                 return prev(method, payload, signal);
             });
+
+            async function nav(config?: ImmediateConfig, menu?: Menu<C>) {
+                const immediate = config?.immediate === true;
+                injectMenu = !immediate;
+                if (immediate) {
+                    await ctx.editMessageReplyMarkup({ reply_markup: menu });
+                } else {
+                    targetMenu = menu;
+                }
+            }
             const controlPanel: MenuControlPanel = {
-                update: (config) => {
-                    if (config?.immediate === true) now(menu);
-                    else later(menu);
-                    return Promise.resolve();
-                },
-                close: (config) => {
-                    if (config?.immediate === true) now();
-                    else later();
-                    return Promise.resolve();
-                },
-                nav: (to, config) => {
-                    const nav = menu.at(to);
-                    if (config?.immediate === true) now(nav);
-                    else later(nav);
-                    return Promise.resolve();
-                },
+                update: (config) => nav(config, menu),
+                close: (config) => nav(config, undefined),
+                nav: (to, config) => nav(config, menu.at(to)),
                 back: (config) => {
-                    const parentId = menu.parent;
-                    if (parentId === undefined) {
+                    const parent = menu.parent;
+                    if (parent === undefined) {
                         throw new Error(
                             `Cannot navigate back from menu '${menu.id}', no known parent!`,
                         );
                     }
-                    const parent = menu.at(parentId);
-                    if (config?.immediate === true) now(parent);
-                    else later(parent);
-                    return Promise.resolve();
+                    return nav(config, menu.at(parent));
                 },
             };
             // register ctx.menu
@@ -845,7 +834,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 // call handlers
                 await next();
                 // update menu if it could not be injected
-                if (injectMenu) await now(targetMenu);
+                if (injectMenu) await nav({ immediate: true }, targetMenu);
             } finally {
                 // unregister ctx.menu
                 Object.assign(ctx, { menu: undefined });
@@ -854,6 +843,20 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     }
 }
 
+/**
+ * Creates an asynchronous rendering function for a given context object. A
+ * rendering function takes a potentially dynamic menu range, and generates a
+ * static two-dimensional array of button objects.
+ *
+ * Menu ranges store menu buttons. You need to pass a button transformer
+ * function that turns a menu button into whatever button type you want to be
+ * generated. For example, you may want to pass a function that generates inline
+ * buttons. This function can be asynchronous.
+ *
+ * @param ctx Context object
+ * @param buttonTransformer Button transformer
+ * @returns Rendering function
+ */
 function createRenderer<C extends Context, B>(
     ctx: C,
     buttonTransformer: (
@@ -867,10 +870,13 @@ function createRenderer<C extends Context, B>(
         range: MaybeDynamicRange<C>,
     ): Promise<B[][]> {
         const k = await keyboard;
+        // Make static
         const btns = typeof range === "function" ? await range(ctx) : range;
+        // Make raw
         if (btns instanceof MenuRange) {
             return btns[ops].reduce(layout, keyboard);
         }
+        // Replay new buttons on top of partially constructed keyboard
         let first = true;
         for (const row of btns) {
             if (!first) k.push([]);
@@ -887,6 +893,15 @@ function createRenderer<C extends Context, B>(
     return (ops) => ops.reduce(layout, Promise.resolve([[]]));
 }
 
+/**
+ * Turns an optional and  potentially dynamic string into a regular string for a
+ * given context object.
+ *
+ * @param ctx Context object
+ * @param value Potentially dynamic string
+ * @param fallback Fallback string value if value is undefined
+ * @returns Plain old string
+ */
 function uniform<C extends Context>(
     ctx: C,
     value: MaybeDynamicString<C> | undefined,
