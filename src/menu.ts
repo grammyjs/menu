@@ -185,7 +185,7 @@ const ops = Symbol("menu building operations");
  */
 export class MenuRange<C extends Context> {
     /** Internal list of range generator functions */
-    [ops]: Array<MaybeDynamicRange<C>> = [];
+    [ops]: MaybeDynamicRange<C>[] = [];
     /**
      * This method is used internally whenever a new range is added.
      *
@@ -383,7 +383,7 @@ export class MenuRange<C extends Context> {
     submenu(
         text: TextAndMaybePayload<C>,
         menu: string,
-        ...middleware: Array<MenuMiddleware<C>>
+        ...middleware: MenuMiddleware<C>[]
     ) {
         return this.text(
             text,
