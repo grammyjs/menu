@@ -11,12 +11,7 @@ import {
 
 const b = 0xff; // mask for lowest byte
 const toNums = (str: string) => Array.from(str).map((c) => c.codePointAt(0)!);
-const enc = new TextEncoder();
 const dec = new TextDecoder();
-/** Computes how long the byte representation of a string is */
-function countBytes(str: string): number {
-    return enc.encode(str).length;
-}
 /** Efficiently computes a 4-byte hash of an int32 array */
 function tinyHash(nums: number[]): string {
     // Inspired by JDK7's hashCode with different primes for a better distribution
@@ -105,9 +100,10 @@ type MenuMiddleware<C extends Context> = Middleware<
 
 type MaybePromise<T> = T | Promise<T>;
 /** String or potentially async function that generates a string */
-type DynamicString<C extends Context> =
+type DynamicString<C extends Context> = ((ctx: C) => MaybePromise<string>);
+type MaybeDynamicString<C extends Context> =
     | string
-    | ((ctx: C) => MaybePromise<string>);
+    | DynamicString<C>;
 
 type Cb<C extends Context> =
     & Omit<
@@ -116,14 +112,14 @@ type Cb<C extends Context> =
     >
     & {
         /**
-         * Middleware that will be invoked if a callback query for this button is
-         * received.
+         * Middleware that will be invoked if a callback query for this button
+         * is received.
          */
         middleware: MenuMiddleware<C>[];
         /**
          * Optional payload for this button
          */
-        payload?: DynamicString<C>;
+        payload?: MaybeDynamicString<C>;
     };
 type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>;
 type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, "text"> : T;
@@ -137,7 +133,7 @@ export type MenuButton<C extends Context> = {
      * function is supplied with the context object that is used to make the
      * request.
      */
-    text: DynamicString<C>;
+    text: MaybeDynamicString<C>;
 } & RemoveAllTexts<NoCb | Cb<C>>;
 
 /**
@@ -148,7 +144,7 @@ type RawRange<C extends Context> = MenuButton<C>[][];
  * Range instance, or a raw (static) range that consists of a two-dimensional
  * menu button array.
  */
-type MaybeRawRange<C extends Context> = Range<C> | RawRange<C>;
+type MaybeRawRange<C extends Context> = MenuRange<C> | RawRange<C>;
 /**
  * Potentially async function that generates a potentially raw range.
  */
@@ -163,9 +159,13 @@ type MaybeDynamicRange<C extends Context> = MaybeRawRange<C> | DynamicRange<C>;
 const ops = Symbol("menu building operations");
 
 /**
- * A range is a two-dimensional array of menu buttons.
+ * A menu range is a two-dimensional array of menu buttons.
+ *
+ * This array is a part of the total two-dimensional array of menu buttons. This
+ * is mostly useful if you want to dynamically generate the structure of the
+ * menu on the fly.
  */
-class Range<C extends Context> {
+export class MenuRange<C extends Context> {
     /** List of range generator functions */
     [ops]: Array<MaybeDynamicRange<C>> = [];
     /**
@@ -173,17 +173,18 @@ class Range<C extends Context> {
      *
      * @param range A range object or a two-dimensional array of menu buttons
      */
-    private addRange(range: MaybeDynamicRange<C>) {
-        this[ops].push(range);
+    addRange(...range: MaybeDynamicRange<C>[]) {
+        this[ops].push(...range);
         return this;
     }
     /**
-     * This method is used internally whenever a new single button is added.
+     * This method is used internally whenever new buttons are added. Adds the
+     * buttons to the current row.
      *
-     * @param btn menu button object
+     * @param btns menu button object
      */
-    private add(btn: MenuButton<C>) {
-        return this.addRange([[btn]]);
+    add(...btns: MenuButton<C>[]) {
+        return this.addRange([btns]);
     }
     /**
      * Adds a 'line break'. Call this method to make sure that the next added
@@ -200,7 +201,7 @@ class Range<C extends Context> {
      * @param text The text to display
      * @param url HTTP or tg:// url to be opened when button is pressed
      */
-    url(text: DynamicString<C>, url: string) {
+    url(text: MaybeDynamicString<C>, url: string) {
         return this.add({ text, url });
     }
     /**
@@ -211,7 +212,7 @@ class Range<C extends Context> {
      * @param text The text to display
      * @param loginUrl The login URL as string or `LoginUrl` object
      */
-    login(text: DynamicString<C>, loginUrl: string | LoginUrl) {
+    login(text: MaybeDynamicString<C>, loginUrl: string | LoginUrl) {
         return this.add({
             text,
             login_url: typeof loginUrl === "string"
@@ -265,12 +266,12 @@ class Range<C extends Context> {
      */
     text(
         text:
-            | DynamicString<C>
+            | MaybeDynamicString<C>
             | {
                 /** Text to display */
-                text: DynamicString<C>;
+                text: MaybeDynamicString<C>;
                 /** Optional payload */
-                payload?: DynamicString<C>;
+                payload?: MaybeDynamicString<C>;
             },
         ...middleware: MenuMiddleware<C>[]
     ) {
@@ -298,7 +299,7 @@ class Range<C extends Context> {
      * @param text The text to display
      * @param query The (optional) inline query string to prefill
      */
-    switchInline(text: DynamicString<C>, query = "") {
+    switchInline(text: MaybeDynamicString<C>, query = "") {
         return this.add({ text, switch_inline_query: query });
     }
     /**
@@ -319,7 +320,7 @@ class Range<C extends Context> {
      * @param text The text to display
      * @param query The (optional) inline query string to prefill
      */
-    switchInlineCurrent(text: DynamicString<C>, query = "") {
+    switchInlineCurrent(text: MaybeDynamicString<C>, query = "") {
         return this.add({ text, switch_inline_query_current_chat: query });
     }
     /**
@@ -330,7 +331,7 @@ class Range<C extends Context> {
      *
      * @param text The text to display
      */
-    game(text: DynamicString<C>) {
+    game(text: MaybeDynamicString<C>) {
         return this.add({ text, callback_game: {} });
     }
     /**
@@ -341,7 +342,7 @@ class Range<C extends Context> {
      *
      * @param text The text to display
      */
-    pay(text: DynamicString<C>) {
+    pay(text: MaybeDynamicString<C>) {
         return this.add({ text, pay: true });
     }
     /**
@@ -364,46 +365,54 @@ class Range<C extends Context> {
      * You can get back the `submenu` instance by calling `parent.at('sub-id')`,
      * where `'sub-id'` is the identifier you passed to the submenu.
      *
-     * @param text The text to display
-     * @param menu The submenu to open when the button is pressed
-     * @param options Further options
+     * @param text The text to display, or a text with payload
+     * @param menuOrOptions The submenu to open, or a submenu and the payload
+     * @param middleware The listeners to call when the button is pressed
      */
     submenu(
-        text: DynamicString<C>,
-        menu: string,
-        options: {
-            /** Middleware to run when the navigation is performed */
-            onAction?: MenuMiddleware<C>;
+        text: MaybeDynamicString<C>,
+        menuOrOptions: string | {
+            /** The submenu to open */
+            menu: string;
             /** Optional payload */
-            payload?: DynamicString<C>;
-        } = {},
+            payload?: MaybeDynamicString<C>;
+        },
+        ...middleware: Array<MenuMiddleware<C>>
     ) {
-        return this.text(
-            { text, payload: options.payload },
-            (ctx, next) => (ctx.menu.nav(menu), next()),
-            ...(options.onAction === undefined ? [] : [options.onAction]),
-        );
+        return typeof menuOrOptions === "string"
+            ? this.text(
+                text,
+                (ctx, next) => (ctx.menu.nav(menuOrOptions), next()),
+                ...middleware,
+            )
+            : this.text(
+                { text, payload: menuOrOptions.payload },
+                (ctx, next) => (ctx.menu.nav(menuOrOptions.menu), next()),
+                ...middleware,
+            );
     }
     /**
      * Adds a text button that performs a navigation to the parent menu via
      * `ctx.menu.back()`.
      *
-     * @param text The text to display
-     * @param options Further options
+     * @param text The text to display, or a text with payload
+     * @param middleware The listeners to call when the button is pressed
      */
     back(
-        text: DynamicString<C>,
-        options: {
-            /** Middleware to run when the navigation is performed */
-            onAction?: MenuMiddleware<C>;
-            /** Optional payload */
-            payload?: DynamicString<C>;
-        } = {},
+        text:
+            | MaybeDynamicString<C>
+            | {
+                /** Text to display */
+                text: MaybeDynamicString<C>;
+                /** Optional payload */
+                payload?: MaybeDynamicString<C>;
+            },
+        ...middleware: MenuMiddleware<C>[]
     ) {
         return this.text(
-            { text, payload: options.payload },
+            text,
             (ctx, next) => (ctx.menu.back(), next()),
-            ...(options.onAction === undefined ? [] : [options.onAction]),
+            ...middleware,
         );
     }
     /**
@@ -426,18 +435,18 @@ class Range<C extends Context> {
     dynamic(
         rangeBuilder: (
             ctx: C,
-            range: Range<C>,
+            range: MenuRange<C>,
         ) => MaybePromise<MaybeRawRange<C> | void>,
     ) {
         return this.addRange(async (ctx: C) => {
-            const range = new Range<C>();
+            const range = new MenuRange<C>();
             const res = await rangeBuilder(ctx, range);
             if (res instanceof Menu) {
                 throw new Error(
                     "Cannot use a `Menu` instance as a dynamic range, did you mean to return an instance of `Menu.Range` instead?",
                 );
             }
-            return res instanceof Range ? res : range;
+            return res instanceof MenuRange ? res : range;
         });
     }
     /**
@@ -447,7 +456,7 @@ class Range<C extends Context> {
      * @param range A potentially raw range
      */
     append(range: MaybeRawRange<C>) {
-        if (range instanceof Range) {
+        if (range instanceof MenuRange) {
             this[ops].push(...range[ops]);
             return this;
         } else return this.addRange(range);
@@ -483,7 +492,11 @@ export interface MenuOptions<C extends Context> {
      * pass a string as the message to display to the user.
      *
      * Alternatively, you can specify custon middleware that will be invoked and
-     * that can handle this case as you wish. You should update the menu yourself, or
+     * that can handle this case as you wish. You should update the menu
+     * yourself, or send a new message with the updated menu.
+     *
+     * The default behavior is to display this message, and to update the menu:
+     * “Menu was outdated, try again!”
      */
     onMenuOutdated?: string | MenuMiddleware<C>;
     /**
@@ -501,8 +514,10 @@ export interface MenuOptions<C extends Context> {
      * If all of these things are identical but the menu is still outdated, you
      * can use this option to supply the neccessary data that lets the menu
      * plugin determine more accurately if the menu is outdated.
+     *
+     * By default, no fingerprinting is used.
      */
-    fingerprint?: ((ctx: C) => MaybePromise<string>);
+    fingerprint?: DynamicString<C>;
 }
 
 /**
@@ -535,18 +550,11 @@ export interface MenuOptions<C extends Context> {
  * to see how you can create menus that span several pages, how to navigate
  * between them, and more.
  */
-export class Menu<C extends Context = Context> extends Range<C>
+export class Menu<C extends Context = Context> extends MenuRange<C>
     implements MiddlewareObj<C>, InlineKeyboardMarkup {
     private parent: string | undefined = undefined;
     private index: Map<string, Menu<C>> = new Map();
     private readonly options: Required<MenuOptions<C>>;
-
-    /**
-     * A menu range is a part of the two-dimensional array of menu buttons. This
-     * is mostly useful if you want to dynamically generate the structure of the
-     * menu on the fly.
-     */
-    static Range = Range;
 
     /**
      * Creates a new menu with the given identifier.
@@ -561,12 +569,6 @@ export class Menu<C extends Context = Context> extends Range<C>
      */
     constructor(private readonly id: string, options: MenuOptions<C> = {}) {
         super();
-        // (id + row + col + prefix + hash) <= 64 bytes
-        if (countBytes(id + "/xx/yy/") + 1 + 4 > 64) {
-            throw new Error(
-                `Please use a shorter menu identifier than '${this.id}'! It causes the payload sizes to exceed 64 bytes!`,
-            );
-        }
         if (id.includes("/")) {
             throw new Error(
                 `You cannot use '/' in a menu identifier ('${id}')`,
@@ -862,7 +864,9 @@ function createRenderer<C extends Context, B>(
     ): Promise<B[][]> {
         const k = await keyboard;
         const btns = typeof range === "function" ? await range(ctx) : range;
-        if (btns instanceof Range) return btns[ops].reduce(layout, keyboard);
+        if (btns instanceof MenuRange) {
+            return btns[ops].reduce(layout, keyboard);
+        }
         let first = true;
         for (const row of btns) {
             if (!first) k.push([]);
@@ -881,7 +885,7 @@ function createRenderer<C extends Context, B>(
 
 function uniform<C extends Context>(
     ctx: C,
-    value: string | ((ctx: C) => MaybePromise<string>) | undefined,
+    value: MaybeDynamicString<C> | undefined,
     fallback = "",
 ): MaybePromise<string> {
     if (value === undefined) return fallback;
