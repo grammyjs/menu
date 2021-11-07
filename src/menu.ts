@@ -114,6 +114,15 @@ type MaybeDynamicString<C extends Context> =
     | string
     | DynamicString<C>;
 
+type TextAndMaybePayload<C extends Context> =
+    | MaybeDynamicString<C>
+    | {
+        /** Text to display */
+        text: MaybeDynamicString<C>;
+        /** Optional payload */
+        payload?: MaybeDynamicString<C>;
+    };
+
 type Cb<C extends Context> =
     & Omit<
         InlineKeyboardButton.CallbackButton,
@@ -274,14 +283,7 @@ export class MenuRange<C extends Context> {
      * @param middleware The listeners to call when the button is pressed
      */
     text(
-        text:
-            | MaybeDynamicString<C>
-            | {
-                /** Text to display */
-                text: MaybeDynamicString<C>;
-                /** Optional payload */
-                payload?: MaybeDynamicString<C>;
-            },
+        text: TextAndMaybePayload<C>,
         ...middleware: MenuMiddleware<C>[]
     ) {
         return this.add(
@@ -375,30 +377,19 @@ export class MenuRange<C extends Context> {
      * where `'sub-id'` is the identifier you passed to the submenu.
      *
      * @param text The text to display, or a text with payload
-     * @param menuOrOptions The submenu to open, or a submenu and the payload
+     * @param menu The identifier of the submenu to open
      * @param middleware The listeners to call when the button is pressed
      */
     submenu(
-        text: MaybeDynamicString<C>,
-        menuOrOptions: string | {
-            /** The submenu to open */
-            menu: string;
-            /** Optional payload */
-            payload?: MaybeDynamicString<C>;
-        },
+        text: TextAndMaybePayload<C>,
+        menu: string,
         ...middleware: Array<MenuMiddleware<C>>
     ) {
-        return typeof menuOrOptions === "string"
-            ? this.text(
-                text,
-                (ctx, next) => (ctx.menu.nav(menuOrOptions), next()),
-                ...middleware,
-            )
-            : this.text(
-                { text, payload: menuOrOptions.payload },
-                (ctx, next) => (ctx.menu.nav(menuOrOptions.menu), next()),
-                ...middleware,
-            );
+        return this.text(
+            text,
+            (ctx, next) => (ctx.menu.nav(menu), next()),
+            ...middleware,
+        );
     }
     /**
      * Adds a text button that performs a navigation to the parent menu via
@@ -408,14 +399,7 @@ export class MenuRange<C extends Context> {
      * @param middleware The listeners to call when the button is pressed
      */
     back(
-        text:
-            | MaybeDynamicString<C>
-            | {
-                /** Text to display */
-                text: MaybeDynamicString<C>;
-                /** Optional payload */
-                payload?: MaybeDynamicString<C>;
-            },
+        text: TextAndMaybePayload<C>,
         ...middleware: MenuMiddleware<C>[]
     ) {
         return this.text(
