@@ -56,39 +56,45 @@ export interface MenuFlavor {
      * Otherwise, a dedicated API call will be performed after your middleware
      * completes.
      */
-    menu: {
-        /**
-         * Call this method to update the menu. For instance, if you have a
-         * button that changes its text based on `ctx`, then you should call
-         * this method to update it.
-         */
-        update(config: { immediate: true }): Promise<void>;
-        update(config?: { immediate?: false }): void;
-        /**
-         * Closes the menu. Removes all buttons underneath the message.
-         */
-        close(config: { immediate: true }): Promise<void>;
-        close(config?: { immediate?: false }): void;
-        /**
-         * Navigates to the parent menu. By default, the parent menu is the menu
-         * on which you called `register` when installing this menu.
-         *
-         * Throws an error if this menu does not have a parent menu.
-         */
-        back(config: { immediate: true }): Promise<void>;
-        back(config?: { immediate?: false }): void;
-        /**
-         * Navigates to the specified submenu. The given identifier is the same
-         * string that you pass to `new Menu('')`. If you specify the identifier
-         * of the current menu itself, this method is equivalent to
-         * `ctx.menu.update()`.
-         *
-         * Remember that you must register all submenus at the root menu using
-         * the `register` method before you can navigate between them.
-         */
-        nav(to: string, config: { immediate: true }): Promise<void>;
-        nav(to: string, config?: { immediate?: false }): void;
-    };
+    menu: MenuControlPanel;
+}
+
+/**
+ * Menu control panel. Can be used to update or close the menu, or to perform
+ * manual navigation between menus.
+ */
+export interface MenuControlPanel {
+    /**
+     * Call this method to update the menu. For instance, if you have a
+     * button that changes its text based on `ctx`, then you should call
+     * this method to update it.
+     */
+    update(config: { immediate: true }): Promise<void>;
+    update(config?: { immediate?: false }): void;
+    /**
+     * Closes the menu. Removes all buttons underneath the message.
+     */
+    close(config: { immediate: true }): Promise<void>;
+    close(config?: { immediate?: false }): void;
+    /**
+     * Navigates to the parent menu. By default, the parent menu is the menu
+     * on which you called `register` when installing this menu.
+     *
+     * Throws an error if this menu does not have a parent menu.
+     */
+    back(config: { immediate: true }): Promise<void>;
+    back(config?: { immediate?: false }): void;
+    /**
+     * Navigates to the specified submenu. The given identifier is the same
+     * string that you pass to `new Menu('')`. If you specify the identifier
+     * of the current menu itself, this method is equivalent to
+     * `ctx.menu.update()`.
+     *
+     * Remember that you must register all submenus at the root menu using
+     * the `register` method before you can navigate between them.
+     */
+    nav(to: string, config: { immediate: true }): Promise<void>;
+    nav(to: string, config?: { immediate?: false }): void;
 }
 
 /**
@@ -803,40 +809,38 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 }
                 return prev(method, payload, signal);
             });
-            const controlPanel: MenuFlavor = {
-                menu: {
-                    update: (config) => {
-                        if (config?.immediate === true) now(menu);
-                        else later(menu);
-                        return Promise.resolve();
-                    },
-                    close: (config) => {
-                        if (config?.immediate === true) now();
-                        else later();
-                        return Promise.resolve();
-                    },
-                    nav: (to, config) => {
-                        const nav = menu.at(to);
-                        if (config?.immediate === true) now(nav);
-                        else later(nav);
-                        return Promise.resolve();
-                    },
-                    back: (config) => {
-                        const parentId = menu.parent;
-                        if (parentId === undefined) {
-                            throw new Error(
-                                `Cannot navigate back from menu '${menu.id}', no known parent!`,
-                            );
-                        }
-                        const parent = menu.at(parentId);
-                        if (config?.immediate === true) now(parent);
-                        else later(parent);
-                        return Promise.resolve();
-                    },
+            const controlPanel: MenuControlPanel = {
+                update: (config) => {
+                    if (config?.immediate === true) now(menu);
+                    else later(menu);
+                    return Promise.resolve();
+                },
+                close: (config) => {
+                    if (config?.immediate === true) now();
+                    else later();
+                    return Promise.resolve();
+                },
+                nav: (to, config) => {
+                    const nav = menu.at(to);
+                    if (config?.immediate === true) now(nav);
+                    else later(nav);
+                    return Promise.resolve();
+                },
+                back: (config) => {
+                    const parentId = menu.parent;
+                    if (parentId === undefined) {
+                        throw new Error(
+                            `Cannot navigate back from menu '${menu.id}', no known parent!`,
+                        );
+                    }
+                    const parent = menu.at(parentId);
+                    if (config?.immediate === true) now(parent);
+                    else later(parent);
+                    return Promise.resolve();
                 },
             };
             // register ctx.menu
-            Object.assign(ctx, controlPanel);
+            Object.assign(ctx, { menu: controlPanel });
             try {
                 // call handlers
                 await next();
