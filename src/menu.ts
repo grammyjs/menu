@@ -107,13 +107,16 @@ type MenuMiddleware<C extends Context> = Middleware<
     Filter<C, "callback_query:data"> & MenuFlavor
 >;
 
+/** A value, or a promise of a value */
 type MaybePromise<T> = T | Promise<T>;
-/** String or potentially async function that generates a string */
+/** A potentially async function that takes a context and returns a string */
 type DynamicString<C extends Context> = ((ctx: C) => MaybePromise<string>);
+/** A potentially dynamic string */
 type MaybeDynamicString<C extends Context> =
     | string
     | DynamicString<C>;
 
+/** A potentially dynamic string, or a an object containing text and payload */
 type TextAndMaybePayload<C extends Context> =
     | MaybeDynamicString<C>
     | {
