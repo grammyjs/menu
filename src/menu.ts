@@ -26,6 +26,14 @@ function tinyHash(nums: number[]): string {
     return dec.decode(Uint8Array.from(bytes)); // turn bytes into string
 }
 
+const INJECT_METHODS = new Set([
+    "editMessageText",
+    "editMessageCaption",
+    "editMessageMedia",
+    "editMessageReplyMarkup",
+    "stopPoll",
+]);
+
 /**
  * Context flavor for context objects in listeners that react to menus. Provides
  * `ctx.menu`, a control pane for the respective menu.
@@ -59,18 +67,21 @@ export interface MenuFlavor {
          * button that changes its text based on `ctx`, then you should call
          * this method to update it.
          */
-        update: () => void;
+        update(config: { immediate: true }): Promise<void>;
+        update(config?: { immediate?: false }): void;
         /**
          * Closes the menu. Removes all buttons underneath the message.
          */
-        close: () => void;
+        close(config: { immediate: true }): Promise<void>;
+        close(config?: { immediate?: false }): void;
         /**
          * Navigates to the parent menu. By default, the parent menu is the menu
          * on which you called `register` when installing this menu.
          *
          * Throws an error if this menu does not have a parent menu.
          */
-        back: () => void;
+        back(config: { immediate: true }): Promise<void>;
+        back(config?: { immediate?: false }): void;
         /**
          * Navigates to the specified submenu. The given identifier is the same
          * string that you pass to `new Menu('')`. If you specify the identifier
@@ -80,7 +91,8 @@ export interface MenuFlavor {
          * Remember that you must register all submenus at the root menu using
          * the `register` method before you can navigate between them.
          */
-        nav: (to: string) => void;
+        nav(to: string, config: { immediate: true }): Promise<void>;
+        nav(to: string, config?: { immediate?: false }): void;
     };
 }
 
@@ -368,8 +380,8 @@ class Range<C extends Context> {
     ) {
         return this.text(
             { text, payload: options.payload },
+            (ctx, next) => (ctx.menu.nav(menu), next()),
             ...(options.onAction === undefined ? [] : [options.onAction]),
-            (ctx) => ctx.menu.nav(menu),
         );
     }
     /**
@@ -390,8 +402,8 @@ class Range<C extends Context> {
     ) {
         return this.text(
             { text, payload: options.payload },
+            (ctx, next) => (ctx.menu.back(), next()),
             ...(options.onAction === undefined ? [] : [options.onAction]),
-            (ctx) => ctx.menu.back(),
         );
     }
     /**
@@ -565,7 +577,7 @@ export class Menu<C extends Context = Context> extends Range<C>
             autoAnswer: options.autoAnswer ?? true,
             onMenuOutdated: options.onMenuOutdated ??
                 "Menu was outdated, try again!",
-            fingerprint: options.fingerprint ?? "",
+            fingerprint: options.fingerprint ?? (() => ""),
         };
     }
     /**
@@ -770,38 +782,54 @@ export class Menu<C extends Context = Context> extends Range<C>
 
     private navInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
         return async (ctx, next) => {
+            let injectMenu = false;
+            let targetMenu: Menu<C> | undefined = undefined;
+            async function now(menu?: Menu<C>) {
+                injectMenu = false;
+                await ctx.editMessageReplyMarkup({ reply_markup: menu });
+            }
+            function later(menu?: Menu<C>) {
+                injectMenu = true;
+                targetMenu = menu;
+            }
+            ctx.api.config.use((prev, method, payload, signal) => {
+                if (
+                    INJECT_METHODS.has(method) && !("reply_markup" in payload)
+                ) {
+                    injectMenu = false;
+                    Object.assign(payload, { reply_markup: targetMenu });
+                }
+                return prev(method, payload, signal);
+            });
             const controlPanel: MenuFlavor = {
-                // TODO: do not update menu immediately!
-
-                // Instead, only set a flag that the menu must be updated. Then,
-                // wait for calls that edit the same message, and inject the
-                // payload there. This will both prevent flickering and save an
-                // API call. If no such call is performed, fall back to
-                // performing an extra API call.
                 menu: {
-                    update: async () => {
-                        await ctx.editMessageReplyMarkup({
-                            reply_markup: menu,
-                        });
+                    update: (config) => {
+                        if (config?.immediate === true) now(menu);
+                        else later(menu);
+                        return Promise.resolve();
                     },
-                    close: async () => {
-                        await ctx.editMessageReplyMarkup();
+                    close: (config) => {
+                        if (config?.immediate === true) now();
+                        else later();
+                        return Promise.resolve();
                     },
-                    nav: async (to: string) => {
-                        await ctx.editMessageReplyMarkup({
-                            reply_markup: menu.at(to),
-                        });
+                    nav: (to, config) => {
+                        const nav = menu.at(to);
+                        if (config?.immediate === true) now(nav);
+                        else later(nav);
+                        return Promise.resolve();
                     },
-                    back: async () => {
-                        const parent = menu.parent;
-                        if (parent === undefined) {
+                    back: (config) => {
+                        const parentId = menu.parent;
+                        if (parentId === undefined) {
                             throw new Error(
                                 `Cannot navigate back from menu '${menu.id}', no known parent!`,
                             );
                         }
-                        await ctx.editMessageReplyMarkup({
-                            reply_markup: menu.at(parent),
-                        });
+                        const parent = menu.at(parentId);
+                        if (config?.immediate === true) now(parent);
+                        else later(parent);
+                        return Promise.resolve();
                     },
                 },
             };
@@ -810,6 +838,8 @@ export class Menu<C extends Context = Context> extends Range<C>
             try {
                 // call handlers
                 await next();
+                // update menu if it could not be injected
+                if (injectMenu) await now(targetMenu);
             } finally {
                 // unregister ctx.menu
                 Object.assign(ctx, { menu: undefined });
