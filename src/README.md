@@ -1,3 +1,6 @@
 # grammY menu plugin
 
-Work in progress. Please try it out and give feedback in the [group chat](https://telegram.me/grammyjs)!
+Plugin to create interactive inline menus for [grammY](https://grammy.dev).
+
+Please visit [the main page of the repo](https://github.com/grammyjs/menu).
+You may also want to look at [the plugin documentation](https://grammy.dev/plugins/menu.html).
