@@ -59,7 +59,7 @@ export interface MenuFlavor {
     menu: MenuControlPanel;
 }
 
-interface ImmediateConfig {
+interface Immediate {
     immediate?: boolean;
 }
 /**
@@ -792,14 +792,10 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 return prev(method, payload, signal);
             });
 
-            async function nav(config?: ImmediateConfig, menu?: Menu<C>) {
-                const immediate = config?.immediate === true;
-                injectMenu = !immediate;
-                if (immediate) {
-                    await ctx.editMessageReplyMarkup({ reply_markup: menu });
-                } else {
-                    targetMenu = menu;
-                }
+            async function nav({ immediate }: Immediate = {}, menu?: Menu<C>) {
+                injectMenu = true;
+                targetMenu = menu;
+                if (immediate) await ctx.editMessageReplyMarkup();
             }
             const controlPanel: MenuControlPanel = {
                 update: (config) => nav(config, menu),
