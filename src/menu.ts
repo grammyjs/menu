@@ -515,8 +515,12 @@ export interface MenuOptions<C extends Context> {
      *
      * The default behavior is to display this message, and to update the menu:
      * “Menu was outdated, try again!”
+     *
+     * You can set `onMenuOutdated` to `false` to disable checks for outdated
+     * menus altogether. In that case, the menu will behave as if the message
+     * was no outdated, and run all handlers regardless.
      */
-    onMenuOutdated?: string | MenuMiddleware<C>;
+    onMenuOutdated?: string | boolean | MenuMiddleware<C>;
     /**
      * Fingerprint function that lets you generate a unique string every time a
      * menu is rendered. Used to determine if a menu is outdated.
@@ -593,10 +597,12 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             );
         }
         this.index.set(id, this);
+        const outdated = options.onMenuOutdated;
         this.options = {
             autoAnswer: options.autoAnswer ?? true,
-            onMenuOutdated: options.onMenuOutdated ??
-                "Menu was outdated, try again!",
+            onMenuOutdated: outdated === undefined || outdated === true
+                ? "Menu was outdated, try again!"
+                : outdated,
             fingerprint: options.fingerprint ?? (() => ""),
         };
     }
@@ -769,7 +775,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             const reply_markup = menu;
             // provide payload on `ctx.match` if it is not empty
             if (payload) ctx.match = payload;
-            const navInstaller = this.navInstaller(menu);
+            const navInstaller = this.makeNavInstaller(menu);
             /** Defines what happens if the used menu is outdated */
             function menuIsOutdated() {
                 const outdated = reply_markup.options.onMenuOutdated;
@@ -781,27 +787,33 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                             ctx.editMessageReplyMarkup({ reply_markup }),
                         ]);
             }
+            const check = this.options.onMenuOutdated !== false;
             // Create renderer and perform rendering
             const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn);
             const range: RawRange<C> = await renderer(menu[ops]);
             // Check dimension
-            if (row >= range.length || col >= range[row].length) {
+            if (check && (row >= range.length || col >= range[row].length)) {
                 return menuIsOutdated();
             }
             // Check correct button type
             const btn = range[row][col];
-            if (!("middleware" in btn)) return menuIsOutdated();
+            if (!("middleware" in btn)) {
+                if (check) return menuIsOutdated();
+                throw new Error(
+                    `Cannot invoke handlers because menu '${menu.id}' is outdated!`,
+                );
+            }
             // Check payloads
             const expectedPayload = await uniform(ctx, btn.payload);
-            if (payload !== expectedPayload) return menuIsOutdated();
+            if (check && payload !== expectedPayload) return menuIsOutdated();
             // Check hashes
             const hash = rest.join("/");
             const lengths = [range.length, ...range.map((row) => row.length)];
             const label = await uniform(ctx, btn.text);
-            const fingerprint = await uniform(ctx, this.options.fingerprint);
+            const fingerprint = await uniform(ctx, menu.options.fingerprint);
             const data = [...lengths, ...toNums(label), ...toNums(fingerprint)];
             const expectedHash = tinyHash(data);
-            if (hash !== expectedHash) return menuIsOutdated();
+            if (check && hash !== expectedHash) return menuIsOutdated();
             // Run handler
             const handler = btn.middleware as Middleware<C>[];
             const mw = [navInstaller, ...handler];
@@ -814,7 +826,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         return composer.middleware();
     }
 
-    private navInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
+    private makeNavInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
         return async (ctx, next) => {
             let injectMenu = false;
             let targetMenu: Menu<C> | undefined = undefined;
