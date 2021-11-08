@@ -631,7 +631,9 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         if (existing !== undefined) {
             throw new Error(`Menu '${existing.id}' already registered!`);
         }
+        this.freeze();
         for (const menu of arr) {
+            menu.freeze();
             // `menu.index` includes `menu` itself
             menu.index.forEach((m, id) => {
                 this.index.set(id, m);
@@ -639,6 +641,18 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             });
             menu.parent = parent;
         }
+    }
+    /**
+     * Prevents this menu from being modified further in the future.
+     */
+    private freeze() {
+        if (Object.isFrozen(this[ops])) return;
+        this[ops].push = () => {
+            throw new Error(
+                "You cannot change a menu after your bot started! Did you mean to use a dynamic range instead?",
+            );
+        };
+        Object.freeze(this[ops]);
     }
     /**
      * Returns the menu instance for the given identifier. If the identifier is
