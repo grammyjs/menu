@@ -1,7 +1,7 @@
 {
     "name": "@grammyjs/menu",
     "description": "Interactive menus for grammY",
-    "version": "0.4.3",
+    "version": "0.5.0",
     "author": "KnorpelSenf",
     "license": "MIT",
     "engines": {
