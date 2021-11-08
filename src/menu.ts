@@ -116,15 +116,17 @@ type MaybeDynamicString<C extends Context> =
     | string
     | DynamicString<C>;
 
-/** A potentially dynamic string, or a an object containing text and payload */
-type TextAndMaybePayload<C extends Context> =
-    | MaybeDynamicString<C>
-    | {
-        /** Text to display */
-        text: MaybeDynamicString<C>;
-        /** Optional payload */
-        payload?: MaybeDynamicString<C>;
-    };
+/** An object containing text and payload */
+interface TextAndPayload<C extends Context> {
+    /** Text to display */
+    text: MaybeDynamicString<C>;
+    /** Optional payload */
+    payload?: MaybeDynamicString<C>;
+}
+/** A dynamic string, or an object with a text and a payload */
+type MaybePayloadString<C extends Context> =
+    | DynamicString<C>
+    | TextAndPayload<C>;
 
 type Cb<C extends Context> =
     & Omit<
@@ -285,10 +287,13 @@ export class MenuRange<C extends Context> {
      * @param text The text to display, or a text with payload
      * @param middleware The listeners to call when the button is pressed
      */
+    text(text: DynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
     text(
-        text: TextAndMaybePayload<C>,
-        ...middleware: MenuMiddleware<C>[]
-    ) {
+        text: TextAndPayload<C>,
+        ...middleware: MenuMiddleware<C & { match: string }>[]
+    ): this;
+    text(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]): this;
+    text(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]) {
         return this.add(
             typeof text === "object"
                 ? { ...text, middleware }
@@ -384,7 +389,22 @@ export class MenuRange<C extends Context> {
      * @param middleware The listeners to call when the button is pressed
      */
     submenu(
-        text: TextAndMaybePayload<C>,
+        text: DynamicString<C>,
+        menu: string,
+        ...middleware: MenuMiddleware<C>[]
+    ): this;
+    submenu(
+        text: TextAndPayload<C>,
+        menu: string,
+        ...middleware: MenuMiddleware<C & { match: string }>[]
+    ): this;
+    submenu(
+        text: MaybePayloadString<C>,
+        menu: string,
+        ...middleware: MenuMiddleware<C>[]
+    ): this;
+    submenu(
+        text: MaybePayloadString<C>,
         menu: string,
         ...middleware: MenuMiddleware<C>[]
     ) {
@@ -401,10 +421,13 @@ export class MenuRange<C extends Context> {
      * @param text The text to display, or a text with payload
      * @param middleware The listeners to call when the button is pressed
      */
+    back(text: DynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
     back(
-        text: TextAndMaybePayload<C>,
-        ...middleware: MenuMiddleware<C>[]
-    ) {
+        text: TextAndPayload<C>,
+        ...middleware: MenuMiddleware<C & { match: string }>[]
+    ): this;
+    back(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]): this;
+    back(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]) {
         return this.text(
             text,
             (ctx, next) => (ctx.menu.back(), next()),
