@@ -68,9 +68,9 @@ interface Immediate {
  */
 export interface MenuControlPanel {
     /**
-     * Call this method to update the menu. For instance, if you have a
-     * button that changes its text based on `ctx`, then you should call
-     * this method to update it.
+     * Call this method to update the menu. For instance, if you have a button
+     * that changes its text based on `ctx`, then you should call this method to
+     * update it.
      */
     update(config: { immediate: true }): Promise<void>;
     update(config?: { immediate?: false }): void;
@@ -80,8 +80,8 @@ export interface MenuControlPanel {
     close(config: { immediate: true }): Promise<void>;
     close(config?: { immediate?: false }): void;
     /**
-     * Navigates to the parent menu. By default, the parent menu is the menu
-     * on which you called `register` when installing this menu.
+     * Navigates to the parent menu. By default, the parent menu is the menu on
+     * which you called `register` when installing this menu.
      *
      * Throws an error if this menu does not have a parent menu.
      */
@@ -89,12 +89,12 @@ export interface MenuControlPanel {
     back(config?: { immediate?: false }): void;
     /**
      * Navigates to the specified submenu. The given identifier is the same
-     * string that you pass to `new Menu('')`. If you specify the identifier
-     * of the current menu itself, this method is equivalent to
+     * string that you pass to `new Menu('')`. If you specify the identifier of
+     * the current menu itself, this method is equivalent to
      * `ctx.menu.update()`.
      *
-     * Remember that you must register all submenus at the root menu using
-     * the `register` method before you can navigate between them.
+     * Remember that you must register all submenus at the root menu using the
+     * `register` method before you can navigate between them.
      */
     nav(to: string, config: { immediate: true }): Promise<void>;
     nav(to: string, config?: { immediate?: false }): void;
