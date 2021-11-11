@@ -71,11 +71,34 @@ export interface MenuControlPanel {
      * Call this method to update the menu. For instance, if you have a button
      * that changes its text based on `ctx`, then you should call this method to
      * update it.
+     *
+     * Calling this method will guarantee that the menu is updated, but note
+     * that this will perform the update lazily. A new menu is injected into the
+     * payload of the request the next time you edit the corresponding message.
+     * If you let your middleware complete without editing the message itself
+     * again, a dedicated API call will be performed that updates the menu.
+     *
+     * Pass `{ immediate: true }` to perform the update eagerly instead of
+     * lazily. A dedicated API call that updates the menu is sent immediately.
+     * In that case, the method returns a Promise that you should `await`. Eager
+     * updating may cause flickering of the menu, and it may be slower in some
+     * cases.
      */
     update(config: { immediate: true }): Promise<void>;
     update(config?: { immediate?: false }): void;
     /**
      * Closes the menu. Removes all buttons underneath the message.
+     *
+     * Calling this method will guarantee that the menu is closed, but note that
+     * this will be done lazily. A new menu is injected into the payload of the
+     * request the next time you edit the corresponding message. If you let your
+     * middleware complete without editing the message itself again, a dedicated
+     * API call will be performed that closes the menu.
+     *
+     * Pass `{ immediate: true }` to perform the update eagerly instead of
+     * lazily. A dedicated API call that updates the menu is sent immediately.
+     * In that case, the method returns a Promise that you should `await`. Eager
+     * closing may be slower in some cases.
      */
     close(config: { immediate: true }): Promise<void>;
     close(config?: { immediate?: false }): void;
@@ -84,6 +107,18 @@ export interface MenuControlPanel {
      * which you called `register` when installing this menu.
      *
      * Throws an error if this menu does not have a parent menu.
+     *
+     * Calling this method will guarantee that the navigation is performed, but
+     * note that this will be done lazily. A new menu is injected into the
+     * payload of the request the next time you edit the corresponding message.
+     * If you let your middleware complete without editing the message itself
+     * again, a dedicated API call will be performed that performs the
+     * navigation.
+     *
+     * Pass `{ immediate: true }` to navigate eagerly instead of lazily. A
+     * dedicated API call is sent immediately. In that case, the method returns
+     * a Promise that you should `await`. Eager navigation may cause flickering
+     * of the menu, and it may be slower in some cases.
      */
     back(config: { immediate: true }): Promise<void>;
     back(config?: { immediate?: false }): void;
@@ -95,6 +130,18 @@ export interface MenuControlPanel {
      *
      * Remember that you must register all submenus at the root menu using the
      * `register` method before you can navigate between them.
+     *
+     * Calling this method will guarantee that the navigation is performed, but
+     * note that this will be done lazily. A new menu is injected into the
+     * payload of the request the next time you edit the corresponding message.
+     * If you let your middleware complete without editing the message itself
+     * again, a dedicated API call will be performed that performs the
+     * navigation.
+     *
+     * Pass `{ immediate: true }` to navigate eagerly instead of lazily. A
+     * dedicated API call is sent immediately. In that case, the method returns
+     * a Promise that you should `await`. Eager navigation may cause flickering
+     * of the menu, and it may be slower in some cases.
      */
     nav(to: string, config: { immediate: true }): Promise<void>;
     nav(to: string, config?: { immediate?: false }): void;
