@@ -172,7 +172,7 @@ interface TextAndPayload<C extends Context> {
 }
 /** A dynamic string, or an object with a text and a payload */
 type MaybePayloadString<C extends Context> =
-    | DynamicString<C>
+    | MaybeDynamicString<C>
     | TextAndPayload<C>;
 
 type Cb<C extends Context> =
@@ -334,7 +334,7 @@ export class MenuRange<C extends Context> {
      * @param text The text to display, or a text with payload
      * @param middleware The listeners to call when the button is pressed
      */
-    text(text: DynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
+    text(text: MaybeDynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
     text(
         text: TextAndPayload<C>,
         ...middleware: MenuMiddleware<C & { match: string }>[]
@@ -436,7 +436,7 @@ export class MenuRange<C extends Context> {
      * @param middleware The listeners to call when the button is pressed
      */
     submenu(
-        text: DynamicString<C>,
+        text: MaybeDynamicString<C>,
         menu: string,
         ...middleware: MenuMiddleware<C>[]
     ): this;
@@ -468,7 +468,7 @@ export class MenuRange<C extends Context> {
      * @param text The text to display, or a text with payload
      * @param middleware The listeners to call when the button is pressed
      */
-    back(text: DynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
+    back(text: MaybeDynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
     back(
         text: TextAndPayload<C>,
         ...middleware: MenuMiddleware<C & { match: string }>[]
