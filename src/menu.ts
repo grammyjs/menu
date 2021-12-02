@@ -553,7 +553,7 @@ export interface MenuOptions<C extends Context> {
      * If the menu is found to be outdated, no handlers are run. Instead, the
      * old message is updated and a fresh menu is put into place. A notification
      * is shown to the user that the menu was outdated. Long story short, you
-     * can use this option to personalise what notification to display. You can
+     * can use this option to personalize what notification to display. You can
      * pass a string as the message to display to the user.
      *
      * Alternatively, you can specify custon middleware that will be invoked and
@@ -570,7 +570,8 @@ export interface MenuOptions<C extends Context> {
     onMenuOutdated?: string | boolean | MenuMiddleware<C>;
     /**
      * Fingerprint function that lets you generate a unique string every time a
-     * menu is rendered. Used to determine if a menu is outdated.
+     * menu is rendered. Used to determine if a menu is outdated. If specified,
+     * replaces the built-in heuristic.
      *
      * The built-in heuristic that determines whether a menu is outdated takes
      * the following things into account:
@@ -582,9 +583,12 @@ export interface MenuOptions<C extends Context> {
      *
      * If all of these things are identical but the menu is still outdated, you
      * can use this option to supply the neccessary data that lets the menu
-     * plugin determine more accurately if the menu is outdated.
+     * plugin determine more accurately if the menu is outdated. Similarly, if
+     * any of these things differ but you want to consider the menu to be up to
+     * date, you can also use this option to signal that.
      *
-     * By default, no fingerprinting is used.
+     * In other words, specifying a fingerprint function will replace the above
+     * heuristic entirely by your own implementation.
      */
     fingerprint?: DynamicString<C>;
 }
@@ -623,7 +627,9 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     implements MiddlewareObj<C>, InlineKeyboardMarkup {
     private parent: string | undefined = undefined;
     private index: Map<string, Menu<C>> = new Map();
-    private readonly options: Required<MenuOptions<C>>;
+    private readonly options: Required<
+        MenuOptions<C> & { onMenuOutdated: string | false | MenuMiddleware<C> }
+    >;
 
     /**
      * Creates a new menu with the given identifier.
@@ -652,6 +658,14 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 : outdated,
             fingerprint: options.fingerprint ?? (() => ""),
         };
+        if (
+            options.onMenuOutdated === false &&
+            options.fingerprint !== undefined
+        ) {
+            throw new Error(
+                "Cannot use a fingerprint function when outdated detection is disabled!",
+            );
+        }
     }
     /**
      * Used internally by the menu, do not touch or you'll burn yourself.
@@ -749,9 +763,10 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                             `Could not render menu '${this.id}'! Payload must not contain a '/' character but was '${payload}'`,
                         );
                     }
-                    const callback_data =
-                        `${this.id}/${row}/${col}/${payload}/`;
-                    return { callback_data, text };
+                    return {
+                        callback_data: `${this.id}/${row}/${col}/${payload}/`,
+                        text,
+                    };
                 } else return { ...btn, text };
             },
         );
@@ -765,12 +780,16 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             for (const btn of row) {
                 if ("callback_data" in btn) {
                     // Inject hash values to detect keyboard changes
-                    const data = [
-                        ...lengths,
-                        ...toNums(btn.text),
-                        ...toNums(fingerprint),
-                    ];
-                    btn.callback_data += tinyHash(data);
+                    let type: "h" | "f";
+                    let data: number[];
+                    if (fingerprint) {
+                        type = "f";
+                        data = toNums(fingerprint);
+                    } else {
+                        type = "h";
+                        data = [...lengths, ...toNums(btn.text)];
+                    }
+                    btn.callback_data += type + tinyHash(data);
                 }
             }
         }
@@ -809,36 +828,51 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             return next();
         });
         composer.on("callback_query:data").lazy(async (ctx) => {
-            const [path, rowStr, colStr, payload, ...rest] = ctx
+            // Extract data from callback query data
+            const [id, rowStr, colStr, payload, ...rest] = ctx
                 .callbackQuery.data.split("/");
+            const [type, ...h] = rest.join("/");
+            const hash = h.join("");
+            // Skip handling if this is not a known format
             if (!rowStr || !colStr) return [];
-            const menu = this.index.get(path);
+            if (type !== "h" && type !== "f") return [];
+            // Get matched menu from index
+            const menu = this.index.get(id);
             if (menu === undefined) return [];
             const row = parseInt(rowStr, 16);
             const col = parseInt(colStr, 16);
             if (row < 0 || col < 0) {
-                throw new Error(`Invalid button position '${row}/${col}'`);
+                const msg = `Invalid button position '${rowStr}/${colStr}'`;
+                throw new Error(msg);
             }
-            const reply_markup = menu;
+            const outdated = menu.options.onMenuOutdated;
             // provide payload on `ctx.match` if it is not empty
             if (payload) ctx.match = payload;
+            // Create middleware that installs `ctx.menu`
             const navInstaller = this.makeNavInstaller(menu);
             /** Defines what happens if the used menu is outdated */
             function menuIsOutdated() {
-                const outdated = reply_markup.options.onMenuOutdated;
+                if (outdated === false) throw new Error("cannot happen");
                 return typeof outdated !== "string"
                     ? [navInstaller, outdated as Middleware<C>]
                     : (ctx: C) =>
                         Promise.all([
                             ctx.answerCallbackQuery({ text: outdated }),
-                            ctx.editMessageReplyMarkup({ reply_markup }),
+                            ctx.editMessageReplyMarkup({ reply_markup: menu }),
                         ]);
             }
-            const check = this.options.onMenuOutdated !== false;
+            // Check fingerprint if used
+            const fingerprint = await uniform(ctx, menu.options.fingerprint);
+            const useFp = fingerprint !== "";
+            if (useFp !== (type === "f")) return menuIsOutdated();
+            if (useFp && tinyHash(toNums(fingerprint)) !== hash) {
+                return menuIsOutdated();
+            }
             // Create renderer and perform rendering
             const renderer = createRenderer(ctx, (btn: MenuButton<C>) => btn);
             const range: RawRange<C> = await renderer(menu[ops]);
             // Check dimension
+            const check = !useFp && outdated !== false;
             if (check && (row >= range.length || col >= range[row].length)) {
                 return menuIsOutdated();
             }
@@ -850,17 +884,15 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                     `Cannot invoke handlers because menu '${menu.id}' is outdated!`,
                 );
             }
-            // Check payloads
-            const expectedPayload = await uniform(ctx, btn.payload);
-            if (check && payload !== expectedPayload) return menuIsOutdated();
-            // Check hashes
-            const hash = rest.join("/");
-            const lengths = [range.length, ...range.map((row) => row.length)];
-            const label = await uniform(ctx, btn.text);
-            const fingerprint = await uniform(ctx, menu.options.fingerprint);
-            const data = [...lengths, ...toNums(label), ...toNums(fingerprint)];
-            const expectedHash = tinyHash(data);
-            if (check && hash !== expectedHash) return menuIsOutdated();
+            // Check dimensions
+            if (check) {
+                const rowCount = range.length;
+                const rowLengths = range.map((row) => row.length);
+                const label = await uniform(ctx, btn.text);
+                const data = [rowCount, ...rowLengths, ...toNums(label)];
+                const expectedHash = tinyHash(data);
+                if (hash !== expectedHash) return menuIsOutdated();
+            }
             // Run handler
             const handler = btn.middleware as Middleware<C>[];
             const mw = [navInstaller, ...handler];
@@ -876,7 +908,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     private makeNavInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
         return async (ctx, next) => {
             let injectMenu = false;
-            let targetMenu: Menu<C> | undefined = undefined;
+            let targetMenu: Menu<C> | undefined = menu;
 
             ctx.api.config.use((prev, method, payload, signal) => {
                 if (
