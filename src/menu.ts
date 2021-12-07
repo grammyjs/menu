@@ -269,7 +269,7 @@ export class MenuRange<C extends Context> {
      * happens, so you cannot react to this button.
      *
      * @param text The text to display
-     * @param url HTTP or tg:// url to be opened when button is pressed
+     * @param url HTTP or tg:// url to be opened when button is pressed. Links tg://user?id=<user_id> can be used to mention a user by their ID without using a username, if this is allowed by their privacy settings.
      */
     url(text: MaybeDynamicString<C>, url: string) {
         return this.add({ text, url });
@@ -404,7 +404,7 @@ export class MenuRange<C extends Context> {
      * Adds a new payment button, confer
      * https://core.telegram.org/bots/api#payments
      *
-     * This type of button must always be the first button in the first row.
+     * This type of button must always be the first button in the first row and can only be used in invoice messages.
      *
      * @param text The text to display
      */
