@@ -275,22 +275,6 @@ export class MenuRange<C extends Context> {
         return this.add({ text, url });
     }
     /**
-     * Adds a new login button. This can be used as a replacement for the
-     * Telegram Login Widget. You must specify an HTTP URL used to automatically
-     * authorize the user.
-     *
-     * @param text The text to display
-     * @param loginUrl The login URL as string or `LoginUrl` object
-     */
-    login(text: MaybeDynamicString<C>, loginUrl: string | LoginUrl) {
-        return this.add({
-            text,
-            login_url: typeof loginUrl === "string"
-                ? { url: loginUrl }
-                : loginUrl,
-        });
-    }
-    /**
      * Adds a new text button. You may pass any number of listeners. They will
      * be called when the button is pressed.
      *
@@ -346,6 +330,32 @@ export class MenuRange<C extends Context> {
                 ? { ...text, middleware }
                 : { text, middleware },
         );
+    }
+    /**
+     * Adds a new web app button, confer https://core.telegram.org/bots/webapps
+     *
+     * @param text The text to display
+     * @param url An HTTPS URL of a Web App to be opened with additional data
+     */
+
+    webApp(text: string, url: string) {
+        return this.add({ text, web_app: { url } });
+    }
+    /**
+     * Adds a new login button. This can be used as a replacement for the
+     * Telegram Login Widget. You must specify an HTTP URL used to automatically
+     * authorize the user.
+     *
+     * @param text The text to display
+     * @param loginUrl The login URL as string or `LoginUrl` object
+     */
+    login(text: MaybeDynamicString<C>, loginUrl: string | LoginUrl) {
+        return this.add({
+            text,
+            login_url: typeof loginUrl === "string"
+                ? { url: loginUrl }
+                : loginUrl,
+        });
     }
     /**
      * Adds a new inline query button. Telegram clients will let the user pick a
