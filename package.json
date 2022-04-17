@@ -22,6 +22,7 @@
         "grammy": "^1.0.0"
     },
     "devDependencies": {
+        "@grammyjs/types": "^2.7.0",
         "deno2node": "^1.0.0"
     },
     "files": [
