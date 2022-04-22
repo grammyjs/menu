@@ -467,7 +467,9 @@ export class MenuRange<C extends Context> {
     ) {
         return this.text(
             text,
-            (ctx, next) => (ctx.menu.nav(menu), next()),
+            middleware.length === 0
+                ? (ctx) => ctx.menu.nav(menu)
+                : (ctx, next) => (ctx.menu.nav(menu), next()),
             ...middleware,
         );
     }
@@ -487,7 +489,9 @@ export class MenuRange<C extends Context> {
     back(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]) {
         return this.text(
             text,
-            (ctx, next) => (ctx.menu.back(), next()),
+            middleware.length === 0
+                ? (ctx) => ctx.menu.back()
+                : (ctx, next) => (ctx.menu.back(), next()),
             ...middleware,
         );
     }
