@@ -1026,7 +1026,7 @@ function createRenderer<C extends Context, B>(
 }
 
 /**
- * Turns an optional and  potentially dynamic string into a regular string for a
+ * Turns an optional and potentially dynamic string into a regular string for a
  * given context object.
  *
  * @param ctx Context object
