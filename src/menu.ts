@@ -157,7 +157,7 @@ type MenuMiddleware<C extends Context> = Middleware<
 /** A value, or a promise of a value */
 type MaybePromise<T> = T | Promise<T>;
 /** A potentially async function that takes a context and returns a string */
-type DynamicString<C extends Context> = ((ctx: C) => MaybePromise<string>);
+type DynamicString<C extends Context> = (ctx: C) => MaybePromise<string>;
 /** A potentially dynamic string */
 type MaybeDynamicString<C extends Context> =
     | string
@@ -343,8 +343,8 @@ export class MenuRange<C extends Context> {
     }
     /**
      * Adds a new login button. This can be used as a replacement for the
-     * Telegram Login Widget. You must specify an HTTP URL used to automatically
-     * authorize the user.
+     * Telegram Login Widget. You must specify an HTTPS URL used to
+     * automatically authorize the user.
      *
      * @param text The text to display
      * @param loginUrl The login URL as string or `LoginUrl` object
