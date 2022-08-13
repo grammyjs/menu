@@ -366,7 +366,7 @@ export class MenuRange<C extends Context> {
      * Your bot will in turn receive updates for inline queries. You can listen
      * to inline query updates like this:
      * ```ts
-     * // Listen for specifc query
+     * // Listen for specific query
      * bot.inlineQuery('my-query', ctx => { ... })
      * // Listen for any query
      * bot.on('inline_query', ctx => { ... })
@@ -387,7 +387,7 @@ export class MenuRange<C extends Context> {
      * Your bot will in turn receive updates for inline queries. You can listen
      * to inline query updates like this:
      * ```ts
-     * // Listen for specifc query
+     * // Listen for specific query
      * bot.inlineQuery('my-query', ctx => { ... })
      * // Listen for any query
      * bot.on('inline_query', ctx => { ... })
@@ -570,7 +570,7 @@ export interface MenuOptions<C extends Context> {
      * can use this option to personalize what notification to display. You can
      * pass a string as the message to display to the user.
      *
-     * Alternatively, you can specify custon middleware that will be invoked and
+     * Alternatively, you can specify custom middleware that will be invoked and
      * that can handle this case as you wish. You should update the menu
      * yourself, or send a new message with the updated menu.
      *
@@ -596,7 +596,7 @@ export interface MenuOptions<C extends Context> {
      * - text of the pressed button
      *
      * If all of these things are identical but the menu is still outdated, you
-     * can use this option to supply the neccessary data that lets the menu
+     * can use this option to supply the necessary data that lets the menu
      * plugin determine more accurately if the menu is outdated. Similarly, if
      * any of these things differ but you want to consider the menu to be up to
      * date, you can also use this option to signal that.
