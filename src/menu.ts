@@ -159,9 +159,7 @@ type MaybePromise<T> = T | Promise<T>;
 /** A potentially async function that takes a context and returns a string */
 type DynamicString<C extends Context> = (ctx: C) => MaybePromise<string>;
 /** A potentially dynamic string */
-type MaybeDynamicString<C extends Context> =
-    | string
-    | DynamicString<C>;
+type MaybeDynamicString<C extends Context> = string | DynamicString<C>;
 
 /** An object containing text and payload */
 interface TextAndPayload<C extends Context> {
