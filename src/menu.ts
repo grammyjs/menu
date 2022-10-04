@@ -202,6 +202,9 @@ export type MenuButton<C extends Context> = {
      * request.
      */
     text: MaybeDynamicString<C>;
+    url?: MaybeDynamicString<C>;
+    switch_inline_query?: MaybeDynamicString<C>;
+    switch_inline_query_current_chat?: MaybeDynamicString<C>;
 } & RemoveAllTexts<NoCb | Cb<C>>;
 
 /**
@@ -766,6 +769,13 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             ctx,
             async (btn, i, j): Promise<InlineKeyboardButton> => {
                 const text = await uniform(ctx, btn.text);
+                btn.url = btn.url && (await uniform(ctx, btn.url))
+                btn.switch_inline_query =
+                    btn.switch_inline_query &&
+                    (await uniform(ctx, btn.switch_inline_query_current_chat))
+                btn.switch_inline_query_current_chat =
+                    btn.switch_inline_query_current_chat &&
+                    (await uniform(ctx, btn.switch_inline_query_current_chat))
                 if ("middleware" in btn) {
                     const row = i.toString(16);
                     const col = j.toString(16);
