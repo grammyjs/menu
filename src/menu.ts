@@ -1,12 +1,13 @@
 import {
-    Composer,
-    Context,
-    Filter,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    LoginUrl,
-    Middleware,
-    MiddlewareObj,
+    type Composer,
+    type Context,
+    type Filter,
+    type InlineKeyboardButton,
+    type InlineKeyboardMarkup,
+    type LoginUrl,
+    type Middleware,
+    type MiddlewareObj,
+    type SwitchInlineQueryChosenChat,
 } from "./deps.deno.ts";
 
 const b = 0xff; // mask for lowest byte
@@ -396,6 +397,27 @@ export class MenuRange<C extends Context> {
      */
     switchInlineCurrent(text: MaybeDynamicString<C>, query = "") {
         return this.add({ text, switch_inline_query_current_chat: query });
+    }
+    /**
+     * Adds a new inline query button. Telegram clients will let the user pick a
+     * chat when this button is pressed. This will start an inline query. The
+     * selected chat will be prefilled with the name of your bot. You may
+     * provide a text that is specified along with it.
+     *
+     * Your bot will in turn receive updates for inline queries. You can listen
+     * to inline query updates like this:
+     * ```ts
+     * bot.on('inline_query', ctx => { ... })
+     * ```
+     *
+     * @param text The text to display
+     * @param query The query object describing which chats can be picked
+     */
+    switchInlineChosenChat(
+        text: string,
+        query: SwitchInlineQueryChosenChat = {},
+    ) {
+        return this.add({ text, switch_inline_query_chosen_chat: query });
     }
     /**
      * Adds a new game query button, confer
