@@ -1,5 +1,5 @@
 import {
-    type Composer,
+    Composer,
     type Context,
     type Filter,
     type InlineKeyboardButton,
