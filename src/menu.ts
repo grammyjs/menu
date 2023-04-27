@@ -336,8 +336,7 @@ export class MenuRange<C extends Context> {
      * @param text The text to display
      * @param url An HTTPS URL of a Web App to be opened with additional data
      */
-
-    webApp(text: string, url: string) {
+    webApp(text: MaybeDynamicString<C>, url: string) {
         return this.add({ text, web_app: { url } });
     }
     /**
