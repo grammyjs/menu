@@ -1,17 +1,11 @@
 {
     "lock": false,
     "fmt": {
-        "options": {
-            "indentWidth": 4,
-            "proseWrap": "preserve"
-        },
-        "files": {
-            "exclude": ["./node_modules/", "./out/", "./package-lock.json"]
-        }
+        "indentWidth": 4,
+        "proseWrap": "preserve",
+        "exclude": ["./node_modules/", "./out/", "./package-lock.json"]
     },
     "lint": {
-        "files": {
-            "exclude": ["./node_modules/", "./out/", "./package-lock.json"]
-        }
+        "exclude": ["./node_modules/", "./out/", "./package-lock.json"]
     }
 }
