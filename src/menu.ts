@@ -541,7 +541,7 @@ export class MenuRange<C extends Context> {
             const res = await rangeBuilder(ctx, range);
             if (res instanceof Menu) {
                 throw new Error(
-                    "Cannot use a `Menu` instance as a dynamic range, did you mean to return an instance of `Menu.Range` instead?",
+                    "Cannot use a `Menu` instance as a dynamic range, did you mean to return an instance of `MenuRange` instead?",
                 );
             }
             return res instanceof MenuRange ? res : range;
@@ -706,7 +706,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     public readonly inline_keyboard = new Proxy([], {
         get: () => {
             throw new Error(
-                `Cannot send menu '${this.id}'! Did you forget to use bot.use() for it?`,
+                `Cannot send menu '${this.id}'! Did you forget to use bot.use() for it or try to send it through bot.api?`,
             );
         },
     });
