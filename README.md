@@ -48,23 +48,5 @@ and official [Deno extension](https://marketplace.visualstudio.com/items?itemNam
 To automatically rebuild the project after changes, run:
 
 ```bash
-npx nodemon
-```
-
-To use test package locally, first link it using npm:
-
-```bash
-npm link
-```
-
-Then, in your project use the linked package:
-
-```bash
-npm link @grammyjs/menu
-```
-
-After you finish development, simply reinstall the package:
-
-```bash
-npm install @grammyjs/menu
+npx nodemon --exec "deno run --allow-all src/pagination.test.ts"
 ```
