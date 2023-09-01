@@ -413,7 +413,7 @@ export class MenuRange<C extends Context> {
      * @param query The query object describing which chats can be picked
      */
     switchInlineChosen(
-        text: MaybePayloadString<C>,
+        text: MaybeDynamicString<C>,
         query: SwitchInlineQueryChosenChat = {},
     ) {
         return this.add({ text, switch_inline_query_chosen_chat: query });
