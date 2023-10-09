@@ -589,7 +589,7 @@ export interface MenuOptions<C extends Context> {
      * can use this option to personalize what notification to display. You can
      * pass a string as the message to display to the user.
      *
-     * Alternatively, you can specify custon middleware that will be invoked and
+     * Alternatively, you can specify custom middleware that will be invoked and
      * that can handle this case as you wish. You should update the menu
      * yourself, or send a new message with the updated menu.
      *
