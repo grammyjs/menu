@@ -25,3 +25,28 @@ bot.command("start", async (ctx) => {
 ```
 
 You can find more examples and documentation on [the plugin page on the website](https://grammy.dev/plugins/menu.html).
+
+## Development
+
+This is a Deno project.
+
+To work on this project, first install npm dependencies as usual:
+
+```bash
+npm install
+```
+
+Then having Deno CLI installed, run:
+
+```bash
+deno cache src/deps.deno.ts
+```
+
+If you are using Visual Studio Code - install [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+and official [Deno extension](https://marketplace.visualstudio.com/items?itemName=denoland.vscode-deno).
+
+To automatically rebuild the project after changes, run:
+
+```bash
+npx nodemon --exec "deno run --allow-all src/pagination.test.ts"
+```
