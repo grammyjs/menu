@@ -270,7 +270,7 @@ export class MenuRange<C extends Context> {
      * @param text The text to display
      * @param url HTTP or tg:// url to be opened when button is pressed. Links tg://user?id=<user_id> can be used to mention a user by their ID without using a username, if this is allowed by their privacy settings.
      */
-    url(text: MaybeDynamicString<C>, url: string) {
+    url(text: MaybeDynamicString<C>, url: MaybeDynamicString<C>) {
         return this.add({ text, url });
     }
     /**
@@ -787,7 +787,12 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             ctx,
             async (btn, i, j): Promise<InlineKeyboardButton> => {
                 const text = await uniform(ctx, btn.text);
-                if ("middleware" in btn) {
+                
+                if ("url" in btn) {
+                    let {url, ...rest} = btn;
+                    url = await uniform(ctx, btn.url);
+                    return { ...rest, url, text };
+                } else if ("middleware" in btn) {
                     const row = i.toString(16);
                     const col = j.toString(16);
                     const payload = await uniform(ctx, btn.payload, "");
