@@ -792,9 +792,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                     let {url, ...rest} = btn;
                     url = await uniform(ctx, btn.url);
                     return { ...rest, url, text };
-                }
-                
-                if ("middleware" in btn) {
+                } else if ("middleware" in btn) {
                     const row = i.toString(16);
                     const col = j.toString(16);
                     const payload = await uniform(ctx, btn.payload, "");
