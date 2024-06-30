@@ -16,6 +16,7 @@
         "url": "https://github.com/grammyjs/menu/issues"
     },
     "scripts": {
+        "prepare": "npm run build",
         "build": "deno2node tsconfig.json"
     },
     "peerDependencies": {
