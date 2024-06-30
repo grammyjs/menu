@@ -192,6 +192,9 @@ type Cb<C extends Context> =
     };
 type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>;
 type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, "text"> : T;
+type MakeUrlDynamic<C extends Context, T> = T extends { url: string }
+    ? Omit<T, "url"> & { url: MaybeDynamicString<C> }
+    : T;
 /**
  * Button of a menu. Almost the same type as InlineKeyboardButton but with texts
  * that can be generated on the fly, and middleware for callback buttons.
@@ -203,7 +206,7 @@ export type MenuButton<C extends Context> = {
      * request.
      */
     text: MaybeDynamicString<C>;
-} & RemoveAllTexts<NoCb | Cb<C>>;
+} & MakeUrlDynamic<C, RemoveAllTexts<NoCb | Cb<C>>>;
 
 /**
  * Raw menu range, i.e. a two-dimensional array of menu buttons.
@@ -787,9 +790,9 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             ctx,
             async (btn, i, j): Promise<InlineKeyboardButton> => {
                 const text = await uniform(ctx, btn.text);
-                
+
                 if ("url" in btn) {
-                    let {url, ...rest} = btn;
+                    let { url, ...rest } = btn;
                     url = await uniform(ctx, btn.url);
                     return { ...rest, url, text };
                 } else if ("middleware" in btn) {
