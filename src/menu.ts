@@ -34,7 +34,7 @@ const INJECT_METHODS = new Set([
  * Context flavor for context objects in listeners that react to menus. Provides
  * `ctx.menu`, a control pane for the respective menu.
  */
-export interface MenuFlavor {
+export interface MenuFlavor<C extends Context> {
     match?: string;
     /**
      * Control panel for the currently active menu. `ctx.menu` is only available
@@ -57,7 +57,7 @@ export interface MenuFlavor {
      * Otherwise, a dedicated API call will be performed after your middleware
      * completes.
      */
-    menu: MenuControlPanel;
+    menu: MenuControlPanel<C>;
 }
 
 interface Immediate {
@@ -67,7 +67,7 @@ interface Immediate {
  * Menu control panel. Can be used to update or close the menu, or to perform
  * manual navigation between menus.
  */
-export interface MenuControlPanel {
+export interface MenuControlPanel<C extends Context> {
     /**
      * Call this method to update the menu. For instance, if you have a button
      * that changes its text based on `ctx`, then you should call this method to
@@ -146,13 +146,20 @@ export interface MenuControlPanel {
      */
     nav(to: string, config: { immediate: true }): Promise<void>;
     nav(to: string, config?: { immediate?: false }): void;
+    /**
+     * Returns the menu instance for the given identifier.
+     *
+     * @param id Menu identifier
+     * @returns The identified menu
+     */
+    at(id: string): Menu<C>
 }
 
 /**
  * Middleware that has access to the `ctx.menu` control panel.
  */
 type MenuMiddleware<C extends Context> = Middleware<
-    Filter<C, "callback_query:data"> & MenuFlavor
+    Filter<C, "callback_query:data"> & MenuFlavor<C>
 >;
 
 /** A value, or a promise of a value */
@@ -986,6 +993,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                     }
                     return nav(config, menu.at(parent));
                 },
+                at: (id) => menu.at(id)
             };
             // register ctx.menu
             Object.assign(ctx, { menu: controlPanel });
