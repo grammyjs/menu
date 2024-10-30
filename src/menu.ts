@@ -1,6 +1,7 @@
 import {
     Composer,
     type Context,
+    type CopyTextButton,
     type Filter,
     type InlineKeyboardButton,
     type InlineKeyboardMarkup,
@@ -420,6 +421,21 @@ export class MenuRange<C extends Context> {
         query: SwitchInlineQueryChosenChat = {},
     ) {
         return this.add({ text, switch_inline_query_chosen_chat: query });
+    }
+    /**
+     * Adds a new copy text button. When clicked, the specified text will be
+     * copied to the clipboard.
+     *
+     * @param text The text to display
+     * @param copyText The text to be copied to the clipboard
+     */
+    copyText(text: string, copyText: string | CopyTextButton) {
+        return this.add({
+            text,
+            copy_text: typeof copyText === "string"
+                ? { text: copyText }
+                : copyText,
+        });
     }
     /**
      * Adds a new game query button, confer
@@ -957,10 +973,10 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                     !("reply_markup" in payload) &&
                     "chat_id" in payload &&
                     payload.chat_id !== undefined &&
-                    payload.chat_id === ctx.chat?.id &&
+                    payload.chat_id === ctx.chatId &&
                     "message_id" in payload &&
                     payload.message_id !== undefined &&
-                    payload.message_id === ctx.msg?.message_id
+                    payload.message_id === ctx.msgId
                 ) {
                     injectMenu = false;
                     Object.assign(payload, { reply_markup: targetMenu });
