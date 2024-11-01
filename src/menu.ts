@@ -314,7 +314,7 @@ export class MenuRange<C extends Context> {
      * // Button will toggle between 'Yes' and 'No' when pressed
      * menu.text(ctx => ctx.session.flag ? 'Yes' : 'No', async ctx => {
      *   ctx.session.flag = !ctx.session.flag
-     *   await ctx.menu.update()
+     *   ctx.menu.update()
      * })
      * ```
      *
@@ -539,7 +539,7 @@ export class MenuRange<C extends Context> {
      *
      * ```ts
      * const menu = new Menu('root')
-     * menu.dynamic(ctx => ctx.session.data.reduce((range, entry) => range.text(entry)), new Menu.Builder())
+     * menu.dynamic(ctx => ctx.session.data.reduce((range, entry) => range.text(entry)), new MenuRange())
      * bot.command("start", async (ctx) => {
      *   await ctx.reply("Menu", {
      *      reply_markup: menu,
@@ -652,7 +652,7 @@ export interface MenuOptions<C extends Context> {
  * interactivity (such as navigation between multiple pages).
  *
  * ```ts
- * // Creating a simple menu
+ * // Create a simple menu
  * const menu = new Menu('my-menu-identifier')
  *   .text('A', ctx => ctx.reply('You pressed A!')).row()
  *   .text('B', ctx => ctx.reply('You pressed B!'))
