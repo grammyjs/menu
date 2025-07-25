@@ -962,7 +962,9 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         return composer.middleware();
     }
 
-    protected makeNavInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
+    protected makeNavInstaller<C extends Context>(
+        menu: Menu<C>,
+    ): Middleware<C> {
         return async (ctx, next) => {
             let injectMenu = false;
             let targetMenu: Menu<C> | undefined = menu;
