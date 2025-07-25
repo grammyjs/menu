@@ -677,9 +677,9 @@ export interface MenuOptions<C extends Context> {
  */
 export class Menu<C extends Context = Context> extends MenuRange<C>
     implements MiddlewareObj<C>, InlineKeyboardMarkup {
-    private parent: string | undefined = undefined;
-    private index: Map<string, Menu<C>> = new Map();
-    private readonly options: Required<
+    protected parent: string | undefined = undefined;
+    protected index: Map<string, Menu<C>> = new Map();
+    protected readonly options: Required<
         MenuOptions<C> & { onMenuOutdated: string | false | MenuMiddleware<C> }
     >;
 
@@ -694,7 +694,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
      * @param id Identifier of the menu
      * @param options Further configuration options
      */
-    constructor(private readonly id: string, options: MenuOptions<C> = {}) {
+    constructor(protected readonly id: string, options: MenuOptions<C> = {}) {
         super();
         if (id.includes("/")) {
             throw new Error(
@@ -764,7 +764,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     /**
      * Prevents this menu from being modified further in the future.
      */
-    private freeze() {
+    protected freeze() {
         if (Object.isFrozen(this[ops])) return;
         this[ops].push = () => {
             throw new Error(
@@ -800,7 +800,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
      *
      * @param ctx Context object to use
      */
-    private async render(ctx: C) {
+    protected async render(ctx: C) {
         // Create renderer
         const renderer = createRenderer(
             ctx,
@@ -862,7 +862,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
      * @param payload Payload of API call
      * @param ctx Context object
      */
-    private async prepare(payload: Record<string, unknown>, ctx: C) {
+    protected async prepare(payload: Record<string, unknown>, ctx: C) {
         if (payload.reply_markup instanceof Menu) {
             const menu = this.index.get(payload.reply_markup.id);
             if (menu !== undefined) {
@@ -962,7 +962,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         return composer.middleware();
     }
 
-    private makeNavInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
+    protected makeNavInstaller<C extends Context>(menu: Menu<C>): Middleware<C> {
         return async (ctx, next) => {
             let injectMenu = false;
             let targetMenu: Menu<C> | undefined = menu;
