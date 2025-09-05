@@ -1,7 +1,5 @@
 import {
     Composer,
-    type Other,
-    type RawApi,
     type Context,
     type CopyTextButton,
     type Filter,
@@ -11,6 +9,7 @@ import {
     type Middleware,
     type MiddlewareObj,
     type SwitchInlineQueryChosenChat,
+    type ApiMethods,
 } from "./deps.deno.ts";
 
 const b = 0xff; // mask for lowest byte
@@ -40,7 +39,7 @@ export const menuMiddleware: () => Middleware = () => (async (ctx, next) => {
     await next();
 })
 
-type SendMessageOmmited = Omit<Other<RawApi, 'sendMessage', 'chat_id'>, 'text' | 'reply_markup' | 'entities' | 'message_thread_id' | 'direct_messages_topic_id'>
+type ContentOptions = Omit< Parameters< ApiMethods['sendMessage'] >[0], 'chat_id' | 'text' | 'reply_markup' | 'entities' | 'message_thread_id' | 'direct_messages_topic_id'>
 
 /**
  * Context flavor for context objects in listeners that react to menus. Provides
@@ -687,7 +686,7 @@ interface MenuContent<C extends Context> {
     /**
      * Formatting options of the menu.
     */
-    options?: Partial<SendMessageOmmited>;
+    options?: Partial<ContentOptions>;
 }
 
 /**
