@@ -1,5 +1,7 @@
 import {
     Composer,
+    type Other,
+    type RawApi,
     type Context,
     type CopyTextButton,
     type Filter,
@@ -31,6 +33,15 @@ const INJECT_METHODS = new Set([
     "stopPoll",
 ]);
 
+export const menuMiddleware: () => Middleware = () => (async (ctx, next) => {
+    Object.assign(ctx, {replyWithMenu: (menu: Menu) => ctx.reply('a', {reply_markup: menu})}); 
+    Object.assign(ctx, {sendMenu: (chat_id: string | number, menu: Menu) => ctx.api.sendMessage(chat_id, 'a', {reply_markup: menu})}); 
+
+    await next();
+})
+
+type SendMessageOmmited = Omit<Other<RawApi, 'sendMessage', 'chat_id'>, 'text' | 'reply_markup' | 'entities' | 'message_thread_id' | 'direct_messages_topic_id'>
+
 /**
  * Context flavor for context objects in listeners that react to menus. Provides
  * `ctx.menu`, a control pane for the respective menu.
@@ -61,11 +72,18 @@ export interface MenuFlavor {
     menu: MenuControlPanel;
 
     /**
-     * Use this method to send menus that have content.
+     * Use this method to reply with menus that have content.
      * 
      * @param menu_id The ID of menu to send
     */
-    replyWithMenu: (menu_id: string) => Promise<void>
+    replyWithMenu: (menu: Menu) => Promise<void>
+
+    /**
+     * Use this method to send menus that have content to a specific chat.
+     * 
+     * @param menu_id The ID of menu to send
+    */
+    sendMenu: (chat_id: string | number, menu: Menu) => Promise<void>
 }
 
 interface Immediate {
@@ -665,6 +683,11 @@ interface MenuContent<C extends Context> {
      * Text of the message where menu is rendered.
     */
     text?: MaybeDynamicString<C>;
+
+    /**
+     * Formatting options of the menu.
+    */
+    options?: Partial<SendMessageOmmited>;
 }
 
 /**
@@ -897,7 +920,6 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     }
     middleware() {
         const composer = new Composer<C>((ctx, next) => {
-            Object.assign(ctx, {replyWithMenu: (id: string) => ctx.reply('a', {reply_markup: this.at(id)})})
             ctx.api.config.use(async (prev, method, payload, signal) => {
                 const p: Record<string, unknown> = payload;
                 if (Array.isArray(p.results)) {
@@ -1127,4 +1149,6 @@ async function apply_menu_content<C extends Context>(ctx: C, payload: Record<str
     if (('text' in content)) {
         Object.assign(payload, {text: await uniform(ctx, content.text)})
     }
+
+    Object.assign(payload, content.options);
 }
