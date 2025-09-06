@@ -75,14 +75,14 @@ export interface MenuFlavor {
      * 
      * @param menu_id The ID of menu to send
     */
-    replyWithMenu: (menu: Menu) => Promise<void>
+    replyWithMenu: <C extends Context>(menu: Menu<C>) => Promise<void>
 
     /**
      * Use this method to send menus that have content to a specific chat.
      * 
      * @param menu_id The ID of menu to send
     */
-    sendMenu: (chat_id: string | number, menu: Menu) => Promise<void>
+    sendMenu: <C extends Context>(chat_id: string | number, menu: Menu<C>) => Promise<void>
 }
 
 interface Immediate {
