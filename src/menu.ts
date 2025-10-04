@@ -630,7 +630,6 @@ export interface MenuOptions<C extends Context> {
      * - identifier of the menu
      * - shape of the menu
      * - position of the pressed button
-     * - potential payload
      * - text of the pressed button
      *
      * If all of these things are identical but the menu is still outdated, you
