@@ -9,6 +9,7 @@ import {
     type Middleware,
     type MiddlewareObj,
     type SwitchInlineQueryChosenChat,
+    type ApiMethods,
 } from "./deps.deno.ts";
 
 const b = 0xff; // mask for lowest byte
@@ -30,6 +31,15 @@ const INJECT_METHODS = new Set([
     "editMessageReplyMarkup",
     "stopPoll",
 ]);
+
+export const menuMiddleware: () => Middleware = () => (async (ctx, next) => {
+    Object.assign(ctx, {replyWithMenu: (menu: Menu) => ctx.reply('a', {reply_markup: menu})}); 
+    Object.assign(ctx, {sendMenu: (chat_id: string | number, menu: Menu) => ctx.api.sendMessage(chat_id, 'a', {reply_markup: menu})}); 
+
+    await next();
+})
+
+type ContentOptions = Omit< Parameters< ApiMethods['sendMessage'] >[0], 'chat_id' | 'text' | 'reply_markup' | 'entities' | 'message_thread_id' | 'direct_messages_topic_id'>
 
 /**
  * Context flavor for context objects in listeners that react to menus. Provides
@@ -59,6 +69,20 @@ export interface MenuFlavor {
      * completes.
      */
     menu: MenuControlPanel;
+
+    /**
+     * Use this method to reply with menus that have content.
+     * 
+     * @param menu_id The ID of menu to send
+    */
+    replyWithMenu: <C extends Context>(menu: Menu<C>) => Promise<void>
+
+    /**
+     * Use this method to send menus that have content to a specific chat.
+     * 
+     * @param menu_id The ID of menu to send
+    */
+    sendMenu: <C extends Context>(chat_id: string | number, menu: Menu<C>) => Promise<void>
 }
 
 interface Immediate {
@@ -642,6 +666,26 @@ export interface MenuOptions<C extends Context> {
      * heuristic entirely by your own implementation.
      */
     fingerprint?: DynamicString<C>;
+
+    /**
+     * The content of menu. For now, the only supported context type is `text`.
+    */
+    content?: MenuContent<C>;
+}
+
+/**
+ * Content options of the menu.
+*/
+interface MenuContent<C extends Context> {
+    /**
+     * Text of the message where menu is rendered.
+    */
+    text?: MaybeDynamicString<C>;
+
+    /**
+     * Formatting options of the menu.
+    */
+    options?: Partial<ContentOptions>;
 }
 
 /**
@@ -708,6 +752,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 ? "Menu was outdated, try again!"
                 : outdated,
             fingerprint: options.fingerprint ?? (() => ""),
+            content: options.content ?? {},
         };
         if (
             options.onMenuOutdated === false &&
@@ -867,6 +912,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             if (menu !== undefined) {
                 const rendered = await menu.render(ctx);
                 payload.reply_markup = { inline_keyboard: rendered };
+                await apply_menu_content(ctx, payload, menu.options.content)
             }
         }
     }
@@ -914,7 +960,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                     : (ctx: C) =>
                         Promise.all([
                             ctx.answerCallbackQuery({ text: outdated }),
-                            ctx.editMessageReplyMarkup({ reply_markup: menu }),
+                            menu == undefined ? ctx.editMessageReplyMarkup({reply_markup: menu}) : menu.edit_message(ctx, false)
                         ]);
             }
             // Check fingerprint if used
@@ -988,7 +1034,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             async function nav({ immediate }: Immediate = {}, menu?: Menu<C>) {
                 injectMenu = true;
                 targetMenu = menu;
-                if (immediate) await ctx.editMessageReplyMarkup();
+                if (immediate) menu == undefined ? await ctx.editMessageReplyMarkup() : await menu.edit_message(ctx, true)
             }
             const controlPanel: MenuControlPanel = {
                 update: (config) => nav(config, menu),
@@ -1016,6 +1062,15 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 Object.assign(ctx, { menu: undefined });
             }
         };
+    }
+
+    protected async edit_message(ctx: C, empty?: boolean) {
+        //(menu != undefined && (menu.options.content.text != undefined && !empty)) ? 
+        if (empty) {
+            this != undefined && this.options.content.text != undefined ? await ctx.editMessageText('') : await ctx.editMessageReplyMarkup();
+        } else {
+            this != undefined && this.options.content.text != undefined ? await ctx.editMessageText(await uniform(ctx, this.options.content.text)) : await ctx.editMessageReplyMarkup({reply_markup: this});
+        }
     }
 }
 
@@ -1086,4 +1141,12 @@ function uniform<C extends Context>(
     if (value === undefined) return fallback;
     else if (typeof value === "function") return value(ctx);
     else return value;
+}
+
+async function apply_menu_content<C extends Context>(ctx: C, payload: Record<string, unknown>, content: MenuContent<C>) {
+    if (('text' in content)) {
+        Object.assign(payload, {text: await uniform(ctx, content.text)})
+    }
+
+    Object.assign(payload, content.options);
 }
