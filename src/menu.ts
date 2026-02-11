@@ -294,8 +294,9 @@ export class MenuRange<C extends Context> {
      * Adds a style to the last added button of the menu.
      *
      * ```ts
-     * menu.text('blue button', ctx => ctx.reply('Done!'))
-     *     .style('primary')
+     * const menu = new Menu('id')
+     *   .text('blue button', ctx => ctx.reply('Done!'))
+     *   .style('primary')
      * ```
      *
      * @param style Style of the button
@@ -305,36 +306,39 @@ export class MenuRange<C extends Context> {
         return this;
     }
     /**
-     * Adds a danger style to the last added button of the menu. Alias for
-     * `.style('danger')`.
+     * Adds a danger style to the last added button of the menu.
+     * Alias for `.style('danger')`.
      *
      * ```ts
-     * menu.text('red button', ctx => ctx.reply('Done!'))
-     *     .danger()
+     * const menu = new Menu('id')
+     *   .text('red button', ctx => ctx.reply('Done!'))
+     *   .danger()
      * ```
      */
     danger() {
         return this.style("danger");
     }
     /**
-     * Adds a success style to the last added button of the menu. Alias for
-     * `.style('success')`.
+     * Adds a success style to the last added button of the menu.
+     * Alias for `.style('success')`.
      *
      * ```ts
-     * menu.text('green button', ctx => ctx.reply('Done!'))
-     *     .success()
+     * const menu = new Menu('id')
+     *   .text('green button', ctx => ctx.reply('Done!'))
+     *   .success()
      * ```
      */
     success() {
         return this.style("success");
     }
     /**
-     * Adds a primary style to the last added button of the menu. Alias for
-     * `.style('primary')`.
+     * Adds a primary style to the last added button of the menu.
+     * Alias for `.style('primary')`.
      *
      * ```ts
-     * menu.text('blue button', ctx => ctx.reply('Done!'))
-     *     .primary()
+     * const menu = new Menu('id')
+     *   .text('blue button', ctx => ctx.reply('Done!'))
+     *   .primary()
      * ```
      */
     primary() {
@@ -344,8 +348,9 @@ export class MenuRange<C extends Context> {
      * Adds a custom emoji icon to the last added button of the menu.
      *
      * ```ts
-     * menu.text('button with icon', ctx => ctx.reply('Done!'))
-     *     .icon(myCustomEmojiIconIdentifier)
+     * const menu = new Menu('id')
+     *   .text('button with icon', ctx => ctx.reply('Done!'))
+     *   .icon("5368324170671202286")
      * ```
      *
      * @param icon Unique identifier of the custom emoji shown before the text of the button
