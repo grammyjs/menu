@@ -983,7 +983,12 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                         data = toNums(fingerprint);
                     } else {
                         type = "h";
-                        data = [...lengths, ...toNums(btn.text)];
+                        data = [
+                            ...lengths,
+                            ...toNums(btn.text),
+                            ...toNums(btn.style ?? ""),
+                            ...toNums(btn.icon_custom_emoji_id ?? ""),
+                        ];
                     }
                     btn.callback_data += type + tinyHash(data);
                 }
@@ -1085,7 +1090,15 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 const rowCount = range.length;
                 const rowLengths = range.map((row) => row.length);
                 const label = await uniform(ctx, btn.text);
-                const data = [rowCount, ...rowLengths, ...toNums(label)];
+                const style = await uniform(ctx, btn.style);
+                const icon = await uniform(ctx, btn.icon_custom_emoji_id);
+                const data = [
+                    rowCount,
+                    ...rowLengths,
+                    ...toNums(label),
+                    ...toNums(style),
+                    ...toNums(icon),
+                ];
                 const expectedHash = tinyHash(data);
                 if (hash !== expectedHash) return menuIsOutdated();
             }
