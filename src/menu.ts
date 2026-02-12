@@ -169,9 +169,8 @@ type ButtonOptions = Omit<
     "text"
 >;
 /** Makes selected fields of T optionally context-dependent */
-type MakeDynamic<C extends Context, T, K extends string> = T extends unknown ?
-        & Omit<T, K>
-        & { [P in keyof T as P extends K ? P : never]: MaybeDynamic<C, T[P]> }
+type MakeDynamic<C extends Context, T, K extends string> = T extends unknown
+    ? { [P in keyof T]: P extends K ? MaybeDynamic<C, T[P]> : T[P] }
     : never;
 /** An object with text and optional styling information */
 type TextWithOptions<C extends Context> = MakeDynamic<
