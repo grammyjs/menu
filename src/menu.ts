@@ -158,22 +158,30 @@ type MenuMiddleware<C extends Context> = Middleware<
 
 /** A value, or a promise of a value */
 type MaybePromise<T> = T | Promise<T>;
-/** A potentially async function that takes a context and returns a string */
-type DynamicString<C extends Context> = (ctx: C) => MaybePromise<string>;
-/** A potentially dynamic string */
-type MaybeDynamicString<C extends Context> = string | DynamicString<C>;
+/** A static value or a function that computes it from a context object */
+type MaybeDynamic<C extends Context, T> =
+    | T
+    | ((ctx: C) => MaybePromise<NonNullable<T>>);
 
-/** An object containing text and payload */
-interface TextAndPayload<C extends Context> {
-    /** Text to display */
-    text: MaybeDynamicString<C>;
-    /** Optional payload */
-    payload?: MaybeDynamicString<C>;
-}
-/** A dynamic string, or an object with a text and a payload */
-type MaybePayloadString<C extends Context> =
-    | MaybeDynamicString<C>
-    | TextAndPayload<C>;
+/** Optional styling information for a button */
+type ButtonOptions = Omit<
+    InlineKeyboardButton.AbstractInlineKeyboardButton,
+    "text"
+>;
+/** Makes selected fields of T optionally context-dependent */
+type MakeDynamic<C extends Context, T, K extends string> = T extends unknown
+    ? { [P in keyof T]: P extends K ? MaybeDynamic<C, T[P]> : T[P] }
+    : never;
+/** An object with text and optional styling information */
+type TextWithOptions<C extends Context> = MakeDynamic<
+    C,
+    InlineKeyboardButton.AbstractInlineKeyboardButton,
+    "text" | keyof ButtonOptions
+>;
+/** An object with text, optional payload, and optional styling information */
+type TextWithPayload<C extends Context> = TextWithOptions<C> & {
+    payload?: MaybeDynamic<C, string>;
+};
 
 type Cb<C extends Context> =
     & Omit<
@@ -189,25 +197,18 @@ type Cb<C extends Context> =
         /**
          * Optional payload for this button
          */
-        payload?: MaybeDynamicString<C>;
+        payload?: MaybeDynamic<C, string>;
     };
 type NoCb = Exclude<InlineKeyboardButton, InlineKeyboardButton.CallbackButton>;
-type RemoveAllTexts<T> = T extends { text: string } ? Omit<T, "text"> : T;
-type MakeUrlDynamic<C extends Context, T> = T extends { url: string }
-    ? Omit<T, "url"> & { url: MaybeDynamicString<C> }
-    : T;
 /**
  * Button of a menu. Almost the same type as InlineKeyboardButton but with texts
  * that can be generated on the fly, and middleware for callback buttons.
  */
-export type MenuButton<C extends Context> = {
-    /**
-     * Label text on the button, or a function that can generate this text. The
-     * function is supplied with the context object that is used to make the
-     * request.
-     */
-    text: MaybeDynamicString<C>;
-} & MakeUrlDynamic<C, RemoveAllTexts<NoCb | Cb<C>>>;
+export type MenuButton<C extends Context> = MakeDynamic<
+    C,
+    NoCb | Cb<C>,
+    "text" | "url" | keyof ButtonOptions
+>;
 
 /**
  * Raw menu range, i.e. a two-dimensional array of menu buttons.
@@ -267,15 +268,110 @@ export class MenuRange<C extends Context> {
         return this.addRange([[], []]);
     }
     /**
+     * Returns the last statically added button, for use by chainable methods
+     * like `.style()` and `.icon()`. Throws if no static button exists or if
+     * the menu is frozen.
+     */
+    protected lastButton(): MenuButton<C> {
+        if (Object.isFrozen(this[ops])) {
+            throw new Error(
+                "You cannot change a menu after your bot started! Did you mean to use a dynamic range instead?",
+            );
+        }
+        for (let i = this[ops].length - 1; i >= 0; i--) {
+            const op = this[ops][i];
+            if (typeof op === "function" || op instanceof MenuRange) continue;
+            for (let r = op.length - 1; r >= 0; r--) {
+                if (op[r].length > 0) return op[r][op[r].length - 1];
+            }
+        }
+        throw new Error(
+            "Need to add a button before applying a style or icon!",
+        );
+    }
+    /**
+     * Adds a style to the last added button of the menu.
+     *
+     * ```ts
+     * const menu = new Menu('id')
+     *   .text('blue button', ctx => ctx.reply('Done!'))
+     *   .style('primary')
+     * ```
+     *
+     * @param style Style of the button
+     */
+    style(style: MaybeDynamic<C, NonNullable<ButtonOptions["style"]>>) {
+        this.lastButton().style = style;
+        return this;
+    }
+    /**
+     * Adds a danger style to the last added button of the menu.
+     * Alias for `.style('danger')`.
+     *
+     * ```ts
+     * const menu = new Menu('id')
+     *   .text('red button', ctx => ctx.reply('Done!'))
+     *   .danger()
+     * ```
+     */
+    danger() {
+        return this.style("danger");
+    }
+    /**
+     * Adds a success style to the last added button of the menu.
+     * Alias for `.style('success')`.
+     *
+     * ```ts
+     * const menu = new Menu('id')
+     *   .text('green button', ctx => ctx.reply('Done!'))
+     *   .success()
+     * ```
+     */
+    success() {
+        return this.style("success");
+    }
+    /**
+     * Adds a primary style to the last added button of the menu.
+     * Alias for `.style('primary')`.
+     *
+     * ```ts
+     * const menu = new Menu('id')
+     *   .text('blue button', ctx => ctx.reply('Done!'))
+     *   .primary()
+     * ```
+     */
+    primary() {
+        return this.style("primary");
+    }
+    /**
+     * Adds a custom emoji icon to the last added button of the menu.
+     *
+     * ```ts
+     * const menu = new Menu('id')
+     *   .text('button with icon', ctx => ctx.reply('Done!'))
+     *   .icon("5368324170671202286")
+     * ```
+     *
+     * @param icon Unique identifier of the custom emoji shown before the text of the button
+     */
+    icon(icon: MaybeDynamic<C, string>) {
+        this.lastButton().icon_custom_emoji_id = icon;
+        return this;
+    }
+    /**
      * Adds a new URL button. Telegram clients will open the provided URL when
      * the button is pressed. Note that they will not notify your bot when that
      * happens, so you cannot react to this button.
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param url HTTP or tg:// url to be opened when button is pressed. Links tg://user?id=<user_id> can be used to mention a user by their ID without using a username, if this is allowed by their privacy settings.
      */
-    url(text: MaybeDynamicString<C>, url: MaybeDynamicString<C>) {
-        return this.add({ text, url });
+    url(
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
+        url: MaybeDynamic<C, string>,
+    ) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, url });
     }
     /**
      * Adds a new text button. You may pass any number of listeners. They will
@@ -318,16 +414,26 @@ export class MenuRange<C extends Context> {
      * })
      * ```
      *
-     * @param text The text to display, or a text with payload
+     * @param text The text to display, and optional payload and styling
+     *   information
      * @param middleware The listeners to call when the button is pressed
      */
-    text(text: MaybeDynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
     text(
-        text: TextAndPayload<C>,
+        text: MaybeDynamic<C, string>,
+        ...middleware: MenuMiddleware<C>[]
+    ): this;
+    text(
+        text: TextWithPayload<C>,
         ...middleware: MenuMiddleware<C & { match: string }>[]
     ): this;
-    text(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]): this;
-    text(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]) {
+    text(
+        text: MaybeDynamic<C, string> | TextWithPayload<C>,
+        ...middleware: MenuMiddleware<C>[]
+    ): this;
+    text(
+        text: MaybeDynamic<C, string> | TextWithPayload<C>,
+        ...middleware: MenuMiddleware<C>[]
+    ) {
         return this.add(
             typeof text === "object"
                 ? { ...text, middleware }
@@ -337,23 +443,28 @@ export class MenuRange<C extends Context> {
     /**
      * Adds a new web app button, confer https://core.telegram.org/bots/webapps
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param url An HTTPS URL of a Web App to be opened with additional data
      */
-    webApp(text: MaybeDynamicString<C>, url: string) {
-        return this.add({ text, web_app: { url } });
+    webApp(text: MaybeDynamic<C, string> | TextWithOptions<C>, url: string) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, web_app: { url } });
     }
     /**
      * Adds a new login button. This can be used as a replacement for the
      * Telegram Login Widget. You must specify an HTTPS URL used to
      * automatically authorize the user.
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param loginUrl The login URL as string or `LoginUrl` object
      */
-    login(text: MaybeDynamicString<C>, loginUrl: string | LoginUrl) {
+    login(
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
+        loginUrl: string | LoginUrl,
+    ) {
+        const base = typeof text === "object" ? text : { text };
         return this.add({
-            text,
+            ...base,
             login_url: typeof loginUrl === "string"
                 ? { url: loginUrl }
                 : loginUrl,
@@ -374,11 +485,15 @@ export class MenuRange<C extends Context> {
      * bot.on('inline_query', ctx => { ... })
      * ```
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param query The (optional) inline query string to prefill
      */
-    switchInline(text: MaybeDynamicString<C>, query = "") {
-        return this.add({ text, switch_inline_query: query });
+    switchInline(
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
+        query = "",
+    ) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, switch_inline_query: query });
     }
     /**
      * Adds a new inline query button that acts on the current chat. The
@@ -395,11 +510,15 @@ export class MenuRange<C extends Context> {
      * bot.on('inline_query', ctx => { ... })
      * ```
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param query The (optional) inline query string to prefill
      */
-    switchInlineCurrent(text: MaybeDynamicString<C>, query = "") {
-        return this.add({ text, switch_inline_query_current_chat: query });
+    switchInlineCurrent(
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
+        query = "",
+    ) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, switch_inline_query_current_chat: query });
     }
     /**
      * Adds a new inline query button. Telegram clients will let the user pick a
@@ -413,25 +532,30 @@ export class MenuRange<C extends Context> {
      * bot.on('inline_query', ctx => { ... })
      * ```
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param query The query object describing which chats can be picked
      */
     switchInlineChosen(
-        text: MaybeDynamicString<C>,
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
         query: SwitchInlineQueryChosenChat = {},
     ) {
-        return this.add({ text, switch_inline_query_chosen_chat: query });
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, switch_inline_query_chosen_chat: query });
     }
     /**
      * Adds a new copy text button. When clicked, the specified text will be
      * copied to the clipboard.
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      * @param copyText The text to be copied to the clipboard
      */
-    copyText(text: string, copyText: string | CopyTextButton) {
+    copyText(
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
+        copyText: string | CopyTextButton,
+    ) {
+        const base = typeof text === "object" ? text : { text };
         return this.add({
-            text,
+            ...base,
             copy_text: typeof copyText === "string"
                 ? { text: copyText }
                 : copyText,
@@ -443,10 +567,11 @@ export class MenuRange<C extends Context> {
      *
      * This type of button must always be the first button in the first row.
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      */
-    game(text: MaybeDynamicString<C>) {
-        return this.add({ text, callback_game: {} });
+    game(text: MaybeDynamic<C, string> | TextWithOptions<C>) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, callback_game: {} });
     }
     /**
      * Adds a new payment button, confer
@@ -454,10 +579,11 @@ export class MenuRange<C extends Context> {
      *
      * This type of button must always be the first button in the first row and can only be used in invoice messages.
      *
-     * @param text The text to display
+     * @param text The text to display, and optional styling information
      */
-    pay(text: MaybeDynamicString<C>) {
-        return this.add({ text, pay: true });
+    pay(text: MaybeDynamic<C, string> | TextWithOptions<C>) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, pay: true });
     }
     /**
      * Adds a button that navigates to a given submenu when pressed. You can
@@ -479,27 +605,28 @@ export class MenuRange<C extends Context> {
      * You can get back the `submenu` instance by calling `parent.at('sub-id')`,
      * where `'sub-id'` is the identifier you passed to the submenu.
      *
-     * @param text The text to display, or a text with payload
+     * @param text The text to display, and optional payload and styling
+     *   information
      * @param menu The identifier of the submenu to open
      * @param middleware The listeners to call when the button is pressed
      */
     submenu(
-        text: MaybeDynamicString<C>,
+        text: MaybeDynamic<C, string>,
         menu: string,
         ...middleware: MenuMiddleware<C>[]
     ): this;
     submenu(
-        text: TextAndPayload<C>,
+        text: TextWithPayload<C>,
         menu: string,
         ...middleware: MenuMiddleware<C & { match: string }>[]
     ): this;
     submenu(
-        text: MaybePayloadString<C>,
+        text: MaybeDynamic<C, string> | TextWithPayload<C>,
         menu: string,
         ...middleware: MenuMiddleware<C>[]
     ): this;
     submenu(
-        text: MaybePayloadString<C>,
+        text: MaybeDynamic<C, string> | TextWithPayload<C>,
         menu: string,
         ...middleware: MenuMiddleware<C>[]
     ) {
@@ -515,16 +642,26 @@ export class MenuRange<C extends Context> {
      * Adds a text button that performs a navigation to the parent menu via
      * `ctx.menu.back()`.
      *
-     * @param text The text to display, or a text with payload
+     * @param text The text to display, and optional payload and styling
+     *   information
      * @param middleware The listeners to call when the button is pressed
      */
-    back(text: MaybeDynamicString<C>, ...middleware: MenuMiddleware<C>[]): this;
     back(
-        text: TextAndPayload<C>,
+        text: MaybeDynamic<C, string>,
+        ...middleware: MenuMiddleware<C>[]
+    ): this;
+    back(
+        text: TextWithPayload<C>,
         ...middleware: MenuMiddleware<C & { match: string }>[]
     ): this;
-    back(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]): this;
-    back(text: MaybePayloadString<C>, ...middleware: MenuMiddleware<C>[]) {
+    back(
+        text: MaybeDynamic<C, string> | TextWithPayload<C>,
+        ...middleware: MenuMiddleware<C>[]
+    ): this;
+    back(
+        text: MaybeDynamic<C, string> | TextWithPayload<C>,
+        ...middleware: MenuMiddleware<C>[]
+    ) {
         return this.text(
             text,
             middleware.length === 0
@@ -641,7 +778,7 @@ export interface MenuOptions<C extends Context> {
      * In other words, specifying a fingerprint function will replace the above
      * heuristic entirely by your own implementation.
      */
-    fingerprint?: DynamicString<C>;
+    fingerprint?: (ctx: C) => MaybePromise<string>;
 }
 
 /**
@@ -804,13 +941,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         const renderer = createRenderer(
             ctx,
             async (btn, i, j): Promise<InlineKeyboardButton> => {
-                const text = await uniform(ctx, btn.text);
-
-                if ("url" in btn) {
-                    let { url, ...rest } = btn;
-                    url = await uniform(ctx, btn.url);
-                    return { ...rest, url, text };
-                } else if ("middleware" in btn) {
+                if ("middleware" in btn) {
                     const row = i.toString(16);
                     const col = j.toString(16);
                     const payload = await uniform(ctx, btn.payload, "");
@@ -819,11 +950,19 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                             `Could not render menu '${this.id}'! Payload must not contain a '/' character but was '${payload}'`,
                         );
                     }
+                    const {
+                        text: _,
+                        middleware: __,
+                        payload: ___,
+                        ...rest
+                    } = btn;
                     return {
+                        text: await uniform(ctx, btn.text),
                         callback_data: `${this.id}/${row}/${col}/${payload}/`,
-                        text,
+                        ...await resolveBtn(ctx, rest),
                     };
-                } else return { ...btn, text };
+                }
+                return await resolveBtn(ctx, btn);
             },
         );
         // Render button array
@@ -843,7 +982,12 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                         data = toNums(fingerprint);
                     } else {
                         type = "h";
-                        data = [...lengths, ...toNums(btn.text)];
+                        data = [
+                            ...lengths,
+                            ...toNums(btn.text),
+                            ...toNums(btn.style ?? ""),
+                            ...toNums(btn.icon_custom_emoji_id ?? ""),
+                        ];
                     }
                     btn.callback_data += type + tinyHash(data);
                 }
@@ -945,7 +1089,15 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                 const rowCount = range.length;
                 const rowLengths = range.map((row) => row.length);
                 const label = await uniform(ctx, btn.text);
-                const data = [rowCount, ...rowLengths, ...toNums(label)];
+                const style = await uniform(ctx, btn.style);
+                const icon = await uniform(ctx, btn.icon_custom_emoji_id);
+                const data = [
+                    rowCount,
+                    ...rowLengths,
+                    ...toNums(label),
+                    ...toNums(style),
+                    ...toNums(icon),
+                ];
                 const expectedHash = tinyHash(data);
                 if (hash !== expectedHash) return menuIsOutdated();
             }
@@ -1080,10 +1232,28 @@ function createRenderer<C extends Context, B>(
  */
 function uniform<C extends Context>(
     ctx: C,
-    value: MaybeDynamicString<C> | undefined,
+    value: MaybeDynamic<C, string> | undefined,
     fallback = "",
 ): MaybePromise<string> {
     if (value === undefined) return fallback;
     else if (typeof value === "function") return value(ctx);
     else return value;
+}
+
+/**
+ * Resolves all dynamic properties of a button object in
+ * parallel, returning a plain object with only static values.
+ */
+async function resolveBtn<C extends Context>(
+    ctx: C,
+    btn: Record<string, unknown>,
+) {
+    return Object.fromEntries(
+        await Promise.all(
+            Object.entries(btn).map(async ([k, v]) => [
+                k,
+                typeof v === "function" ? await v(ctx) : v,
+            ]),
+        ),
+    );
 }
