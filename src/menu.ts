@@ -818,6 +818,9 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
     protected readonly options: Required<
         MenuOptions<C> & { onMenuOutdated: string | false | MenuMiddleware<C> }
     >;
+    // Warn at most once per menu about callback_data exceeding Telegram's 64-byte
+    // limit — repeating on every render would flood the console.
+    private warnedLongCallbackData = false;
 
     /**
      * Creates a new menu with the given identifier.
@@ -971,8 +974,11 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
         const lengths = [rendered.length, ...rendered.map((row) => row.length)];
         // Generate fingerprint
         const fingerprint = await uniform(ctx, this.options.fingerprint);
-        for (const row of rendered) {
-            for (const btn of row) {
+        const encoder = new TextEncoder();
+        for (let i = 0; i < rendered.length; i++) {
+            const row = rendered[i];
+            for (let j = 0; j < row.length; j++) {
+                const btn = row[j];
                 if ("callback_data" in btn) {
                     // Inject hash values to detect keyboard changes
                     let type: "h" | "f";
@@ -990,6 +996,15 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
                         ];
                     }
                     btn.callback_data += type + tinyHash(data);
+                    if (!this.warnedLongCallbackData) {
+                        const bytes = encoder.encode(btn.callback_data).length;
+                        if (bytes > 64) {
+                            this.warnedLongCallbackData = true;
+                            console.warn(
+                                `grammY menu '${this.id}': callback_data for button at row ${i}, col ${j} is ${bytes} bytes, which exceeds Telegram's 64-byte limit. The Bot API will reject it with "BUTTON_DATA_INVALID". Shorten the menu id or payload. The overhead added by the plugin is the menu id plus about 6 bytes, so usable payload is roughly 58 - id.length bytes.`,
+                            );
+                        }
+                    }
                 }
             }
         }
