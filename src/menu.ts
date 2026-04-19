@@ -7,6 +7,7 @@ import {
     type InlineKeyboardMarkup,
     type LoginUrl,
     type Middleware,
+    type MiddlewareFn,
     type MiddlewareObj,
     type SwitchInlineQueryChosenChat,
 } from "./deps.deno.ts";
@@ -1014,7 +1015,7 @@ export class Menu<C extends Context = Context> extends MenuRange<C>
             }
         }
     }
-    middleware() {
+    middleware(): MiddlewareFn<C> {
         const composer = new Composer<C>((ctx, next) => {
             ctx.api.config.use(async (prev, method, payload, signal) => {
                 const p: Record<string, unknown> = payload;
