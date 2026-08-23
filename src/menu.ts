@@ -472,6 +472,15 @@ export class MenuRange<C extends Context> {
         });
     }
     /**
+     * Adds a disabled button. It does nothing.
+     */
+    disabled(
+        text: MaybeDynamic<C, string> | TextWithOptions<C>,
+    ) {
+        const base = typeof text === "object" ? text : { text };
+        return this.add({ ...base, disabled: {} });
+    }
+    /**
      * Adds a new inline query button. Telegram clients will let the user pick a
      * chat when this button is pressed. This will start an inline query. The
      * selected chat will be prefilled with the name of your bot. You may
