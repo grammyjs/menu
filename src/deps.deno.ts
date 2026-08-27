@@ -1,2 +1,2 @@
-export * from "https://libdenodev.knightniwrem.deno.net/x/grammy@1.x/mod.ts";
-export * from "https://libdenodev.knightniwrem.deno.net/x/grammy@1.x/types.ts";
+export * from "https://cdn.jsdelivr.net/gh/grammyjs/grammY@^1.46/src/mod.ts";
+export * from "https://cdn.jsdelivr.net/gh/grammyjs/grammY@^1.46/src/types.ts";
