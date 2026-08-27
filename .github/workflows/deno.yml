@@ -13,12 +13,17 @@ on:
     pull_request:
         branches: [main]
 
+permissions:
+    contents: read
+
 jobs:
     backport:
         runs-on: ubuntu-latest
         steps:
             - name: Setup repo
               uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - name: Install dependencies
               run: npm install --ignore-scripts
@@ -31,6 +36,8 @@ jobs:
         steps:
             - name: Setup repo
               uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - uses: denoland/setup-deno@v2
               with:
@@ -52,6 +59,8 @@ jobs:
         steps:
             - name: Setup repo
               uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - uses: denoland/setup-deno@v2
               with:
